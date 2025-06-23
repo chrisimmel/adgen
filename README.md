@@ -17,7 +17,8 @@ An agentic system that uses LLMs and generative AI models to create short video 
 ## Examples
 
 [Quiksilver with Veo 3](examples/quiksilver-veo3/README.md)
-./examples/quiksilver-veo3/veo3_video_8129669891560862276_1750679506.mp4
+
+https://github.com/user-attachments/assets/6031deb6-2b99-435a-a60d-bb553ccba67b
 
 ## Quick Start
 
