@@ -5,7 +5,7 @@ from pathlib import Path
 
 class MusicProvider(ABC):
     """Abstract base class for AI music generation providers."""
-    
+
     @abstractmethod
     async def generate_music(
         self,
@@ -13,7 +13,7 @@ class MusicProvider(ABC):
         duration_seconds: int = 15,
         genre: Optional[str] = None,
         mood: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Path:
         """Generate background music from text prompt."""
         pass
@@ -21,17 +21,17 @@ class MusicProvider(ABC):
 
 class SunoProvider(MusicProvider):
     """Suno AI music generation provider."""
-    
+
     def __init__(self, api_key: str):
         self.api_key = api_key
-    
+
     async def generate_music(
         self,
         prompt: str,
         duration_seconds: int = 15,
         genre: Optional[str] = None,
         mood: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Path:
         # TODO: Implement Suno API integration
         raise NotImplementedError("Suno integration pending")
@@ -39,17 +39,17 @@ class SunoProvider(MusicProvider):
 
 class UdioProvider(MusicProvider):
     """Udio AI music generation provider."""
-    
+
     def __init__(self, api_key: str):
         self.api_key = api_key
-    
+
     async def generate_music(
         self,
         prompt: str,
         duration_seconds: int = 15,
         genre: Optional[str] = None,
         mood: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Path:
         # TODO: Implement Udio API integration
         raise NotImplementedError("Udio integration pending")
@@ -57,14 +57,14 @@ class UdioProvider(MusicProvider):
 
 class MockMusicProvider(MusicProvider):
     """Mock music provider for testing."""
-    
+
     async def generate_music(
         self,
         prompt: str,
         duration_seconds: int = 15,
         genre: Optional[str] = None,
         mood: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Path:
         """Return mock music path for testing."""
         mock_path = Path(f"outputs/media/mock_music_{hash(prompt)}.mp3")
@@ -75,9 +75,11 @@ class MockMusicProvider(MusicProvider):
 
 class MusicFactory:
     """Factory for creating music providers."""
-    
+
     @staticmethod
-    def create_provider(provider_type: str, api_key: Optional[str] = None) -> MusicProvider:
+    def create_provider(
+        provider_type: str, api_key: Optional[str] = None
+    ) -> MusicProvider:
         """Create a music provider instance."""
         if provider_type.lower() == "suno":
             if not api_key:

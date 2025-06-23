@@ -9,10 +9,13 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Confirm
 
-from .models.ad import AdProject
-from .workflows.ad_generation import create_ad_generation_workflow, AdGenerationState
-from .utils.config import load_config
-from .utils.markdown import (
+from adgen.models.ad import AdProject
+from adgen.workflows.ad_generation import (
+    create_ad_generation_workflow,
+    AdGenerationState,
+)
+from adgen.utils.config import load_config
+from adgen.utils.markdown import (
     generate_concept_markdown,
     generate_script_markdown,
     generate_visual_plan_markdown,

@@ -13,17 +13,20 @@ An agentic system that uses LLMs and generative AI models to create short video 
 ## Quick Start
 
 1. **Install dependencies:**
+
    ```bash
    uv sync
    ```
 
 2. **Set up environment variables:**
+
    ```bash
    cp .env.example .env
    # Edit .env with your API keys
    ```
 
 3. **Generate an ad:**
+
    ```bash
    uv run adgen -b "We sell eco-friendly water bottles for athletes"
    ```
@@ -31,6 +34,7 @@ An agentic system that uses LLMs and generative AI models to create short video 
 ## Configuration
 
 Edit `config.yaml` to customize:
+
 - Provider preferences (OpenAI, Anthropic, etc.)
 - Video duration and quality settings
 - Review and approval settings
@@ -49,6 +53,7 @@ adgen/
 ## Development Status
 
 Currently implemented:
+
 - ✅ Project structure and configuration
 - ✅ Provider abstractions with mock implementations  
 - ✅ LangGraph workflow for ad concept generation
@@ -57,6 +62,7 @@ Currently implemented:
 - ✅ Markdown output generation
 
 Coming next:
+
 - 🔲 Actual API integrations for video/audio/music generation
 - 🔲 Video composition with MoviePy
 - 🔲 FastAPI service interface

@@ -4,11 +4,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 
-from ..models.ad import AdProject, AdConcept, AdScript, VisualPlan
-from ..utils.config import Config, get_api_key
-from ..abstractions.video import VideoFactory
-from ..abstractions.audio import AudioFactory
-from ..abstractions.music import MusicFactory
+from adgen.models.ad import AdProject, AdConcept, AdScript, VisualPlan
+from adgen.utils.config import Config, get_api_key
 
 
 class AdGenerationState(Dict[str, Any]):
@@ -62,7 +59,7 @@ async def generate_concept_node(state: AdGenerationState) -> AdGenerationState:
     Remember that we are trying to sell the products or services of the business. The target
     audience for the ad depends on the who the business is and what they sell, but is whoever
     the business sells to.
-    
+
     Make it compelling and appropriate for a {state["config"].ad_duration_seconds}-second video ad.
     """
 

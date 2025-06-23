@@ -2,25 +2,26 @@ import os
 import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
 
 class Config(BaseModel):
     """Application configuration loaded from YAML and environment variables."""
-    
+
     # General settings
     ad_duration_seconds: int = 15
     output_dir: str = "outputs"
-    
+
     # Provider configurations
     providers: Dict[str, str] = {
         "llm": "openai",
-        "video": "mock", 
+        "video": "mock",
         "audio": "mock",
-        "music": "mock"
+        "music": "mock",
     }
-    
+
     # Service-specific settings
     llm: Dict[str, Any] = {}
     video: Dict[str, Any] = {}
@@ -29,9 +30,11 @@ class Config(BaseModel):
     review: Dict[str, Any] = {}
 
 
-def load_config(config_path: Optional[Path] = None, env_file: Optional[Path] = None) -> Config:
+def load_config(
+    config_path: Optional[Path] = None, env_file: Optional[Path] = None
+) -> Config:
     """Load configuration from YAML file and environment variables."""
-    
+
     # Load environment variables
     if env_file:
         load_dotenv(env_file)
@@ -40,23 +43,23 @@ def load_config(config_path: Optional[Path] = None, env_file: Optional[Path] = N
         env_path = Path(".env")
         if env_path.exists():
             load_dotenv(env_path)
-    
+
     # Load YAML configuration
     if config_path is None:
         config_path = Path("config.yaml")
-    
+
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
+
+    with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
-    
+
     return Config(**config_data)
 
 
 def get_api_key(provider: str, service_type: str = "llm") -> Optional[str]:
     """Get API key for a specific provider and service type from environment."""
-    
+
     # Map provider names to environment variable names
     key_mapping = {
         ("openai", "llm"): "OPENAI_API_KEY",
@@ -68,6 +71,6 @@ def get_api_key(provider: str, service_type: str = "llm") -> Optional[str]:
         ("suno", "music"): "SUNO_API_KEY",
         ("udio", "music"): "UDIO_API_KEY",
     }
-    
+
     env_var = key_mapping.get((provider.lower(), service_type.lower()))
     return os.getenv(env_var) if env_var else None
