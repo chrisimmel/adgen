@@ -7,12 +7,17 @@ An agentic system that uses LLMs and generative AI models to create short video 
 - **Agentic Workflow**: Uses LangGraph for orchestrated ad generation
 - **Website Analysis**: Automatically analyzes business websites to extract company info
 - **Intelligent Business Descriptions**: Generates rich business profiles from web content
-- **Video Generation**: Integrated RunwayML support for AI-generated video content
+- **Video Generation**: Integrated RunwayML and Veo 3 support for AI-generated video content
 - **Provider Agnostic**: Abstractions for LLM, video, audio, and music providers
 - **Human Review Points**: Strategic approval points in the workflow
 - **Markdown Output**: Generated concepts and plans saved as markdown files
 - **Flexible Input**: Accepts either website URLs or direct business descriptions
 - **CLI Interface**: Easy-to-use command line interface
+
+## Examples
+
+[Quiksilver with Veo 3](examples/quiksilver-veo3/README.md)
+./examples/quiksilver-veo3/veo3_video_8129669891560862276_1750679506.mp4
 
 ## Quick Start
 
@@ -75,7 +80,7 @@ Both paths then follow the same workflow:
 - **Concept Generation**: Creates ad strategy and messaging
 - **Human Review**: Approval checkpoint for concept
 - **Script & Visual Planning**: Generates narration and visual elements
-- **Video Generation**: Creates AI-generated video using RunwayML (configurable)
+- **Video Generation**: Creates AI-generated video using RunwayML or Veo 3 (configurable)
 - **Output**: Saves all components as organized markdown files and generated media
 
 ## Configuration
@@ -108,6 +113,7 @@ Currently implemented:
 - ✅ Provider abstractions with mock implementations
 - ✅ LangGraph workflow for ad concept generation
 - ✅ RunwayML video generation integration
+- ✅ Veo 3 video generation integration
 - ✅ Video composition with MoviePy
 - ✅ Structured LLM output
 - ✅ CLI interface with human review points

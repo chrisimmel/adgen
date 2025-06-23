@@ -241,6 +241,172 @@ class RunwayMLProvider(VideoProvider):
         return mock_path
 
 
+class Veo3Provider(VideoProvider):
+    """Google Veo 3 video generation provider via FAL."""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def _clean_prompt_unicode(self, prompt: str) -> str:
+        """Clean prompt to handle Unicode characters that cause encoding issues."""
+        import re
+
+        # Replace smart quotes and other problematic Unicode characters
+        replacements = {
+            "\u201c": '"',  # Left double quotation mark
+            "\u201d": '"',  # Right double quotation mark
+            "\u2018": "'",  # Left single quotation mark
+            "\u2019": "'",  # Right single quotation mark
+            "\u2013": "-",  # En dash
+            "\u2014": "-",  # Em dash
+            "\u2026": "...",  # Horizontal ellipsis
+        }
+
+        clean = prompt
+        for unicode_char, replacement in replacements.items():
+            clean = clean.replace(unicode_char, replacement)
+
+        # Remove any remaining non-ASCII characters
+        clean = re.sub(r"[^\x00-\x7F]+", " ", clean)
+
+        # Clean up extra whitespace
+        clean = re.sub(r"\s+", " ", clean).strip()
+
+        return clean
+
+    async def generate_video(
+        self,
+        prompt: str,
+        duration_seconds: int = 8,
+        aspect_ratio: str = "16:9",
+        **kwargs,
+    ) -> Path:
+        """Generate video using Veo 3 via FAL API."""
+        max_retries = 3
+        retry_delay = 5
+
+        for attempt in range(max_retries):
+            try:
+                # Import FAL client
+                import os
+
+                from dotenv import load_dotenv
+                import fal_client
+
+                # Ensure environment variables are loaded
+                load_dotenv()
+
+                # Set the FAL_KEY environment variable, ensuring it's ASCII-safe
+                clean_api_key = self.api_key.encode("ascii", "ignore").decode("ascii")
+                os.environ["FAL_KEY"] = clean_api_key
+
+                print(
+                    f"Generating video with Veo 3: '{prompt[:100]}...' ({aspect_ratio}, {duration_seconds}s)"
+                )
+
+                # Clean prompt for Unicode issues
+                clean_prompt = self._clean_prompt_unicode(prompt.strip())
+                print(
+                    f"Original prompt length: {len(prompt)}, cleaned length: {len(clean_prompt)}"
+                )
+
+                # Veo 3 parameters
+                arguments = {
+                    "prompt": clean_prompt,
+                    "aspect_ratio": aspect_ratio,
+                    "generate_audio": kwargs.get("generate_audio", False),
+                }
+
+                # Add optional parameters if provided
+                if "negative_prompt" in kwargs:
+                    arguments["negative_prompt"] = kwargs["negative_prompt"]
+                if "enhance_prompt" in kwargs:
+                    arguments["enhance_prompt"] = kwargs["enhance_prompt"]
+                if "seed" in kwargs:
+                    arguments["seed"] = kwargs["seed"]
+
+                print(f"Veo 3 arguments: {arguments}")
+
+                # Submit video generation request
+                result = fal_client.subscribe("fal-ai/veo3", arguments=arguments)
+
+                # Extract video URL from response
+                video_url = None
+                if hasattr(result, "get") and result.get("video"):
+                    video_data = result["video"]
+                    if isinstance(video_data, dict) and "url" in video_data:
+                        video_url = video_data["url"]
+                    elif isinstance(video_data, str):
+                        video_url = video_data
+                elif hasattr(result, "video") and result.video:
+                    if hasattr(result.video, "url"):
+                        video_url = result.video.url
+                    else:
+                        video_url = str(result.video)
+
+                if not video_url:
+                    print(f"Veo 3 result structure: {type(result)} - {result}")
+                    raise ValueError("Failed to extract video URL from Veo 3 response")
+
+                print(f"Generated video URL: {video_url}")
+
+                # Download the video
+                output_path = Path(
+                    f"outputs/media/veo3_video_{hash(prompt)}_{int(time.time())}.mp4"
+                )
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                async with (
+                    aiohttp.ClientSession() as session,
+                    session.get(video_url) as response,
+                ):
+                    if response.status == 200:
+                        with open(output_path, "wb") as f:
+                            async for chunk in response.content.iter_chunked(8192):
+                                f.write(chunk)
+                    else:
+                        raise ValueError(
+                            f"Failed to download video: HTTP {response.status}"
+                        )
+
+                print(f"Video saved to: {output_path}")
+                return output_path
+
+            except ImportError:
+                raise RuntimeError(
+                    "FAL client not installed. Run: pip install fal-client"
+                ) from None
+            except (TimeoutError, aiohttp.ClientError) as e:
+                print(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                else:
+                    print("All retry attempts failed")
+                    break
+            except Exception as e:
+                print(
+                    f"Veo 3 generation failed on attempt {attempt + 1}: {type(e).__name__}: {e}"
+                )
+                import traceback
+
+                print(f"Full traceback: {traceback.format_exc()}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    break
+
+        # If we get here, all attempts failed
+        print("Falling back to mock video generation")
+        mock_path = Path(f"outputs/media/veo3_fallback_{hash(prompt)}.mp4")
+        mock_path.parent.mkdir(parents=True, exist_ok=True)
+        mock_path.touch()
+        return mock_path
+
+
 class PikaProvider(VideoProvider):
     """Pika Labs video generation provider."""
 
@@ -287,6 +453,10 @@ class VideoFactory:
             if not api_key:
                 raise ValueError("API key required for RunwayML")
             return RunwayMLProvider(api_key)
+        elif provider_type.lower() == "veo3":
+            if not api_key:
+                raise ValueError("API key required for Veo 3")
+            return Veo3Provider(api_key)
         elif provider_type.lower() == "pika":
             if not api_key:
                 raise ValueError("API key required for Pika")

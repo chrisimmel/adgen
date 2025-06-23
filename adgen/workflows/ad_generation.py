@@ -259,6 +259,25 @@ async def generate_visual_plan_node(state: AdGenerationState) -> AdGenerationSta
     return state
 
 
+def _create_comprehensive_prompt(concept, script, visual_plan, duration_seconds):
+    """Create a comprehensive prompt for single-clip video generation."""
+    scenes_text = (
+        ", then ".join(visual_plan.scenes) if visual_plan.scenes else "product showcase"
+    )
+
+    comprehensive_prompt = (
+        f"{concept.style} {concept.tone} {duration_seconds}-second commercial advertisement. "
+        f"Opening: {script.hook}. "
+        f"Main content: {script.main_content}. "
+        f"Visual sequence: {scenes_text}. "
+        f"Ending: {script.call_to_action}. "
+        f"Key message: {concept.key_message}. "
+        f"Professional commercial cinematography with smooth transitions between scenes."
+    )
+
+    return comprehensive_prompt
+
+
 async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     """Generate multiple scene-based video clips using the visual plan and script."""
     if not state["approve_concept"]:
@@ -294,48 +313,97 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
 
         # Get provider-specific constraints
         provider_config = config.video.get(provider_type, {})
-        max_scenes = provider_config.get("max_scenes", 5)
-        min_duration = provider_config.get("min_duration", 3)
-        max_duration = provider_config.get("max_duration", 10)
+        single_clip_mode = provider_config.get("single_clip_mode", False)
 
-        # Limit scenes based on provider constraints and target duration
-        scenes = visual_plan.scenes if visual_plan.scenes else ["product showcase"]
-
-        # Calculate optimal scene count to fit within target duration
-        target_duration = config.ad_duration_seconds
-        optimal_scenes = min(max_scenes, target_duration // min_duration, len(scenes))
-
-        # Select the most important scenes if we need to limit
-        if len(scenes) > optimal_scenes:
+        if single_clip_mode:
+            # Generate entire sequence as a single comprehensive clip
             print(
-                f"Limiting to {optimal_scenes} scenes (from {len(scenes)}) to fit {target_duration}s target"
+                f"Generating single comprehensive video clip (provider: {provider_type})"
             )
-            scenes = scenes[:optimal_scenes]
 
-        total_scenes = len(scenes)
-        scene_duration = min(
-            max_duration, max(min_duration, target_duration // total_scenes)
-        )
+            target_duration = config.ad_duration_seconds
 
-        print(
-            f"Generating {total_scenes} scene clips, {scene_duration}s each (provider: {provider_type})"
-        )
+            # Create comprehensive prompt that includes all scenes
+            comprehensive_prompt = _create_comprehensive_prompt(
+                concept, script, visual_plan, target_duration
+            )
 
-        for i, scene in enumerate(scenes):
-            print(f"Generating scene {i+1}/{total_scenes}: {scene[:50]}...")
+            print(f"Comprehensive prompt: {comprehensive_prompt[:200]}...")
 
-            # Create scene-specific prompt
-            scene_prompt = f"{concept.style} {concept.tone} commercial scene: {scene}. {concept.key_message}."
+            # Generate single video with provider-specific options
+            video_kwargs = {
+                "duration_seconds": target_duration,
+                "aspect_ratio": config.video.get("aspect_ratio", "16:9"),
+            }
 
-            # Generate scene clip
+            # Add provider-specific options
+            if provider_type == "veo3":
+                video_kwargs["generate_audio"] = provider_config.get(
+                    "generate_audio", False
+                )
+
             scene_path = await video_provider.generate_video(
-                prompt=scene_prompt.strip(),
-                duration_seconds=scene_duration,
-                aspect_ratio=config.video.get("aspect_ratio", "16:9"),
+                prompt=comprehensive_prompt.strip(), **video_kwargs
             )
 
             scene_clips.append(scene_path)
-            print(f"Scene {i+1} generated: {scene_path}")
+            print(f"Single comprehensive video generated: {scene_path}")
+
+        else:
+            # Multi-scene mode (existing logic)
+            max_scenes = provider_config.get("max_scenes", 5)
+            min_duration = provider_config.get("min_duration", 3)
+            max_duration = provider_config.get("max_duration", 10)
+
+            # Limit scenes based on provider constraints and target duration
+            scenes = visual_plan.scenes if visual_plan.scenes else ["product showcase"]
+
+            # Calculate optimal scene count to fit within target duration
+            target_duration = config.ad_duration_seconds
+            optimal_scenes = min(
+                max_scenes, target_duration // min_duration, len(scenes)
+            )
+
+            # Select the most important scenes if we need to limit
+            if len(scenes) > optimal_scenes:
+                print(
+                    f"Limiting to {optimal_scenes} scenes (from {len(scenes)}) to fit {target_duration}s target"
+                )
+                scenes = scenes[:optimal_scenes]
+
+            total_scenes = len(scenes)
+            scene_duration = min(
+                max_duration, max(min_duration, target_duration // total_scenes)
+            )
+
+            print(
+                f"Generating {total_scenes} scene clips, {scene_duration}s each (provider: {provider_type})"
+            )
+
+            for i, scene in enumerate(scenes):
+                print(f"Generating scene {i+1}/{total_scenes}: {scene[:50]}...")
+
+                # Create scene-specific prompt
+                scene_prompt = f"{concept.style} {concept.tone} commercial scene: {scene}. {concept.key_message}."
+
+                # Generate scene clip with provider-specific options
+                video_kwargs = {
+                    "duration_seconds": scene_duration,
+                    "aspect_ratio": config.video.get("aspect_ratio", "16:9"),
+                }
+
+                # Add provider-specific options
+                if provider_type == "veo3":
+                    video_kwargs["generate_audio"] = provider_config.get(
+                        "generate_audio", False
+                    )
+
+                scene_path = await video_provider.generate_video(
+                    prompt=scene_prompt.strip(), **video_kwargs
+                )
+
+                scene_clips.append(scene_path)
+                print(f"Scene {i+1} generated: {scene_path}")
 
         # Update project with generated scene clips
         if not state["project"].assets:
@@ -366,8 +434,8 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
 
     scene_clips = state["project"].assets.scene_clips
     if len(scene_clips) <= 1:
-        print("Only one or no clips found, skipping composition")
-        # If we only have one clip, use it as the final video
+        print("Single clip mode - using clip as final video")
+        # If we only have one clip (single-clip mode), use it as the final video
         if scene_clips:
             state["project"].assets.final_video_path = scene_clips[0]
             state["project"].status = "video_composed"

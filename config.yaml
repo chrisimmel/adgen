@@ -7,7 +7,7 @@ output_dir: "outputs"
 # Provider Defaults
 providers:
   llm: "anthropic" # openai, anthropic
-  video: "runwayml" # runwayml, pika, mock
+  video: "veo3" # runwayml, pika, veo3, mock
   audio: "mock" # elevenlabs, openai, mock
   music: "mock" # suno, udio, mock
 
@@ -36,6 +36,13 @@ video:
     max_duration: 15
     min_duration: 3
     max_scenes: 5
+  veo3:
+    max_duration: 8
+    min_duration: 5
+    max_scenes: 1 # Single comprehensive clip
+    single_clip_mode: true # Generate entire sequence in one clip
+    generate_audio: true # Cheaper without audio
+    timeout_seconds: 300
 
 # Audio Generation Settings
 audio:
