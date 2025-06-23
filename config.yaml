@@ -8,7 +8,7 @@ output_dir: "outputs"
 providers:
   llm: "anthropic" # openai, anthropic
   video: "runwayml" # runwayml, pika, veo3, mock
-  audio: "mock" # elevenlabs, openai, mock
+  audio: "openai" # elevenlabs, openai, mock
   music: "mock" # suno, udio, mock
 
 # LLM Settings

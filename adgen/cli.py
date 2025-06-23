@@ -160,7 +160,7 @@ async def run_workflow(
             media_workflow = create_media_workflow(config)
             result = await media_workflow.ainvoke(result)
 
-            # Check if video was generated
+            # Check if video and audio were generated
             if result["project"].assets:
                 assets = result["project"].assets
                 if assets.final_video_path:
@@ -174,6 +174,11 @@ async def run_workflow(
                 elif assets.video_path:
                     console.print(
                         f"[green]✅ Video generated: {assets.video_path}[/green]"
+                    )
+
+                if assets.audio_path:
+                    console.print(
+                        f"[green]✅ Voice-over audio generated: {assets.audio_path}[/green]"
                     )
 
             if result["project"].status in [
@@ -200,6 +205,9 @@ async def run_workflow(
                     )
                 elif assets.video_path:
                     console.print(f"[blue]Generated video: {assets.video_path}[/blue]")
+
+                if assets.audio_path:
+                    console.print(f"[blue]Voice-over audio: {assets.audio_path}[/blue]")
 
     except Exception as e:
         console.print(f"[red]Error during workflow execution: {e}[/red]")

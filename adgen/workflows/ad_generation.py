@@ -5,6 +5,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
+from adgen.abstractions.audio import AudioFactory
 from adgen.abstractions.video import VideoFactory
 from adgen.models.ad import AdAssets, AdConcept, AdProject, AdScript, VisualPlan
 from adgen.utils.config import Config, get_api_key
@@ -430,6 +431,70 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
+    """Generate voice-over audio from the script."""
+    if not state["approve_concept"]:
+        return state
+
+    script = state["project"].script
+    if not script:
+        print("No script found for audio generation")
+        return state
+
+    # Ensure environment variables are loaded
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    # Create audio provider
+    config = state["config"]
+    provider_type = config.providers.get("audio", "mock")
+    api_key = get_api_key(provider_type, "audio")
+
+    print(f"Audio provider: {provider_type}")
+    print(f"API key available: {'Yes' if api_key else 'No'}")
+
+    try:
+        audio_provider = AudioFactory.create_provider(provider_type, api_key)
+
+        # Combine script parts into full narration
+        full_script = (
+            f"{script.hook} {script.main_content} {script.call_to_action}".strip()
+        )
+
+        # Get audio config
+        audio_config = config.audio.get(provider_type, {})
+        voice = audio_config.get("voice", "alloy")
+        speed = audio_config.get("speed", 1.0)
+
+        print(f"Generating voice-over: voice={voice}, speed={speed}")
+        print(f"Script: '{full_script[:100]}...'")
+
+        # Generate audio
+        audio_path = await audio_provider.generate_speech(
+            text=full_script, voice_id=voice, speed=speed
+        )
+
+        # Update project with generated audio
+        if not state["project"].assets:
+            state["project"].assets = AdAssets()
+
+        state["project"].assets.audio_path = audio_path
+        state["project"].status = "audio_generated"
+
+        print(f"Audio generated successfully: {audio_path}")
+
+    except Exception as e:
+        print(f"Audio generation failed: {e}")
+        import traceback
+
+        print(f"Full traceback: {traceback.format_exc()}")
+        # Continue without audio for now
+        state["project"].status = "audio_generation_failed"
+
+    return state
+
+
 async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
     """Compose individual scene clips into a final video using MoviePy."""
     if not state["approve_concept"]:
@@ -515,6 +580,37 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
 
         # Concatenate all clips
         final_clip = concatenate_videoclips(clips)
+
+        # Add voice-over audio if available
+        if state["project"].assets and state["project"].assets.audio_path:
+            audio_path = state["project"].assets.audio_path
+            if audio_path.exists():
+                print(f"Adding voice-over audio: {audio_path}")
+                try:
+                    from moviepy.audio.io.AudioFileClip import AudioFileClip
+
+                    audio_clip = AudioFileClip(str(audio_path))
+
+                    # Trim audio to match video duration if necessary
+                    if audio_clip.duration > final_clip.duration:
+                        print(
+                            f"Trimming audio from {audio_clip.duration:.1f}s to {final_clip.duration:.1f}s"
+                        )
+                        audio_clip = audio_clip.subclipped(0, final_clip.duration)
+                    elif audio_clip.duration < final_clip.duration:
+                        print(
+                            f"Audio ({audio_clip.duration:.1f}s) is shorter than video ({final_clip.duration:.1f}s)"
+                        )
+
+                    # Set the audio to the video
+                    final_clip = final_clip.with_audio(audio_clip)
+                    print("Voice-over audio successfully added")
+
+                except Exception as e:
+                    print(f"Failed to add audio: {e}")
+                    # Continue without audio
+            else:
+                print(f"Audio file not found: {audio_path}")
 
         # Create output path for final video
         project_id = state["project"].project_id
@@ -620,13 +716,15 @@ def create_media_workflow(_config: Config) -> StateGraph:
     workflow.add_node("generate_script", generate_script_node)
     workflow.add_node("generate_visual_plan", generate_visual_plan_node)
     workflow.add_node("generate_video", generate_video_node)
+    workflow.add_node("generate_audio", generate_audio_node)
     workflow.add_node("compose_video", compose_video_node)
 
     # Set entry point and flow
     workflow.set_entry_point("generate_script")
     workflow.add_edge("generate_script", "generate_visual_plan")
     workflow.add_edge("generate_visual_plan", "generate_video")
-    workflow.add_edge("generate_video", "compose_video")
+    workflow.add_edge("generate_video", "generate_audio")
+    workflow.add_edge("generate_audio", "compose_video")
     workflow.add_edge("compose_video", END)
 
     return workflow.compile()

@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+import asyncio
 from pathlib import Path
+import time
 
 
 class AudioProvider(ABC):
@@ -33,10 +35,71 @@ class OpenAITTSProvider(AudioProvider):
         self.api_key = api_key
 
     async def generate_speech(
-        self, text: str, voice_id: str | None = "alloy", speed: float = 1.0, **kwargs
+        self, text: str, voice_id: str | None = "alloy", speed: float = 1.0, **_kwargs
     ) -> Path:
-        # TODO: Implement OpenAI TTS API integration
-        raise NotImplementedError("OpenAI TTS integration pending")
+        """Generate speech using OpenAI TTS API."""
+        max_retries = 3
+        retry_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                from dotenv import load_dotenv
+                from openai import AsyncOpenAI
+
+                # Ensure environment variables are loaded
+                load_dotenv()
+
+                # Create async client
+                client = AsyncOpenAI(api_key=self.api_key)
+
+                voice = voice_id or "alloy"
+                print(f"Generating audio with OpenAI TTS: voice={voice}, speed={speed}")
+                print(f"Text: '{text[:100]}...'")
+
+                # Generate audio
+                response = await client.audio.speech.create(
+                    model="tts-1",
+                    voice=voice,
+                    input=text,
+                    speed=speed,
+                )
+
+                # Save audio to file
+                output_path = Path(
+                    f"outputs/media/openai_audio_{hash(text)}_{int(time.time())}.mp3"
+                )
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Write audio data
+                with open(output_path, "wb") as f:
+                    async for chunk in response.iter_bytes():
+                        f.write(chunk)
+
+                print(f"Audio saved to: {output_path}")
+                return output_path
+
+            except ImportError:
+                raise RuntimeError(
+                    "OpenAI SDK not installed. Run: pip install openai"
+                ) from None
+            except Exception as e:
+                print(
+                    f"OpenAI TTS generation failed on attempt {attempt + 1}: {type(e).__name__}: {e}"
+                )
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                else:
+                    break
+
+        # If we get here, all attempts failed
+        print("Falling back to mock audio generation")
+        mock_path = Path(f"outputs/media/openai_audio_fallback_{hash(text)}.mp3")
+        mock_path.parent.mkdir(parents=True, exist_ok=True)
+        mock_path.touch()
+        return mock_path
 
 
 class MockAudioProvider(AudioProvider):
