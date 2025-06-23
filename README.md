@@ -108,6 +108,7 @@ Currently implemented:
 - ✅ Provider abstractions with mock implementations
 - ✅ LangGraph workflow for ad concept generation
 - ✅ RunwayML video generation integration
+- ✅ Video composition with MoviePy
 - ✅ Structured LLM output
 - ✅ CLI interface with human review points
 - ✅ Markdown output generation
@@ -116,5 +117,4 @@ Coming next:
 
 - 🔲 Audio generation (ElevenLabs, OpenAI TTS)
 - 🔲 Music generation (Suno, Udio)
-- 🔲 Video composition with MoviePy
 - 🔲 FastAPI service interface
