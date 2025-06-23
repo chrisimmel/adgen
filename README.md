@@ -2,6 +2,8 @@
 
 An agentic system that uses LLMs and generative AI models to create short video advertisements with narration and music.
 
+This is only a small proof of concept, but could easily be the beginning of a full-fledged product.
+
 ## Features
 
 - **Agentic Workflow**: Uses LangGraph for orchestrated ad generation
@@ -19,6 +21,7 @@ An agentic system that uses LLMs and generative AI models to create short video 
 [Quiksilver with Veo 3](examples/quiksilver-veo3/README.md)
 
 This input:
+
 ```bash
 uv run adgen -u https://www.quiksilver.fr/
 ```
@@ -95,7 +98,7 @@ Both paths then follow the same workflow:
 
 Edit `config.yaml` to customize:
 
-- Provider preferences (OpenAI, Anthropic, etc.)
+- Provider preferences (OpenAI, Anthropic, Runway, Veo 3, etc.)
 - Video duration and quality settings
 - Review and approval settings
 - Web scraping preferences
@@ -131,4 +134,5 @@ Coming next:
 
 - 🔲 Audio generation (ElevenLabs, OpenAI TTS)
 - 🔲 Music generation (Suno, Udio)
+- 🔲 Automated quality control (the agents will inspect the concept, script, video, etc. to look for things to improve)
 - 🔲 FastAPI service interface
