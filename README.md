@@ -18,6 +18,13 @@ An agentic system that uses LLMs and generative AI models to create short video 
 
 [Quiksilver with Veo 3](examples/quiksilver-veo3/README.md)
 
+This input:
+```bash
+uv run adgen -u https://www.quiksilver.fr/
+```
+
+Yields this ad:
+
 https://github.com/user-attachments/assets/6031deb6-2b99-435a-a60d-bb553ccba67b
 
 ## Quick Start
