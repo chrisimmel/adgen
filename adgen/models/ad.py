@@ -38,10 +38,11 @@ class VisualPlan(BaseModel):
 class AdAssets(BaseModel):
     """Represents generated media assets for the advertisement."""
 
-    video_path: Path | None = None
+    video_path: Path | None = None  # Legacy single video path
+    scene_clips: list[Path] | None = None  # Individual scene video clips
     audio_path: Path | None = None
     music_path: Path | None = None
-    final_video_path: Path | None = None
+    final_video_path: Path | None = None  # Composed final video from all scenes
 
 
 class AdProject(BaseModel):

@@ -7,6 +7,7 @@ An agentic system that uses LLMs and generative AI models to create short video 
 - **Agentic Workflow**: Uses LangGraph for orchestrated ad generation
 - **Website Analysis**: Automatically analyzes business websites to extract company info
 - **Intelligent Business Descriptions**: Generates rich business profiles from web content
+- **Video Generation**: Integrated RunwayML support for AI-generated video content
 - **Provider Agnostic**: Abstractions for LLM, video, audio, and music providers
 - **Human Review Points**: Strategic approval points in the workflow
 - **Markdown Output**: Generated concepts and plans saved as markdown files
@@ -74,7 +75,8 @@ Both paths then follow the same workflow:
 - **Concept Generation**: Creates ad strategy and messaging
 - **Human Review**: Approval checkpoint for concept
 - **Script & Visual Planning**: Generates narration and visual elements
-- **Output**: Saves all components as organized markdown files
+- **Video Generation**: Creates AI-generated video using RunwayML (configurable)
+- **Output**: Saves all components as organized markdown files and generated media
 
 ## Configuration
 
@@ -105,12 +107,14 @@ Currently implemented:
 - ✅ AI-powered business description generation
 - ✅ Provider abstractions with mock implementations
 - ✅ LangGraph workflow for ad concept generation
+- ✅ RunwayML video generation integration
 - ✅ Structured LLM output
 - ✅ CLI interface with human review points
 - ✅ Markdown output generation
 
 Coming next:
 
-- 🔲 Actual API integrations for video/audio/music generation
+- 🔲 Audio generation (ElevenLabs, OpenAI TTS)
+- 🔲 Music generation (Suno, Udio)
 - 🔲 Video composition with MoviePy
 - 🔲 FastAPI service interface

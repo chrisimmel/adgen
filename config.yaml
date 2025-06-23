@@ -7,7 +7,7 @@ output_dir: "outputs"
 # Provider Defaults
 providers:
   llm: "anthropic" # openai, anthropic
-  video: "mock" # runwayml, pika, mock
+  video: "runwayml" # runwayml, pika, mock
   audio: "mock" # elevenlabs, openai, mock
   music: "mock" # suno, udio, mock
 
@@ -25,9 +25,17 @@ video:
   aspect_ratio: "16:9"
   quality: "high"
   runwayml:
-    model: "gen3"
+    text_to_image_model: "gen4_image"
+    image_to_video_model: "gen4_turbo"
+    max_duration: 10
+    min_duration: 5
+    timeout_seconds: 300
+    max_scenes: 3 # Limit scenes to stay within total duration
   pika:
     model: "1.0"
+    max_duration: 15
+    min_duration: 3
+    max_scenes: 5
 
 # Audio Generation Settings
 audio:
