@@ -66,6 +66,7 @@ def get_api_key(provider: str, service_type: str = "llm") -> str | None:
         ("openai", "audio"): "OPENAI_API_KEY",
         ("anthropic", "llm"): "ANTHROPIC_API_KEY",
         ("runwayml", "video"): "RUNWAYML_API_KEY",
+        ("veo3", "video"): "FAL_KEY",
         ("pika", "video"): "PIKA_API_KEY",
         ("elevenlabs", "audio"): "ELEVENLABS_API_KEY",
         ("suno", "music"): "SUNO_API_KEY",
