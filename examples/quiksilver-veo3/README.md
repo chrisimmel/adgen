@@ -1,5 +1,7 @@
 # Quiksilver Ad with Veo 3
 
+./veo3_video_8129669891560862276_1750679506.mp4
+
 This is the first ad generated using Veo 3. It was created with the following command:
 
 ```bash
