@@ -47,8 +47,12 @@ class AdAssets(BaseModel):
 class AdProject(BaseModel):
     """Complete advertisement project containing all components."""
 
-    # Input
-    business_description: str
+    # Input - either URL or direct business description
+    source_url: str | None = None
+    business_description: str | None = None
+
+    # Intermediate content (for URL input)
+    web_content_markdown: str | None = None
 
     # Generated content
     concept: AdConcept | None = None
@@ -59,4 +63,6 @@ class AdProject(BaseModel):
     # Metadata
     project_id: str
     created_at: str
-    status: str = "created"  # created, concept_generated, script_generated, etc.
+    status: str = (
+        "created"  # created, web_scraped, business_analyzed, concept_generated, etc.
+    )

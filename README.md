@@ -5,9 +5,12 @@ An agentic system that uses LLMs and generative AI models to create short video 
 ## Features
 
 - **Agentic Workflow**: Uses LangGraph for orchestrated ad generation
+- **Website Analysis**: Automatically analyzes business websites to extract company info
+- **Intelligent Business Descriptions**: Generates rich business profiles from web content
 - **Provider Agnostic**: Abstractions for LLM, video, audio, and music providers
 - **Human Review Points**: Strategic approval points in the workflow
 - **Markdown Output**: Generated concepts and plans saved as markdown files
+- **Flexible Input**: Accepts either website URLs or direct business descriptions
 - **CLI Interface**: Easy-to-use command line interface
 
 ## Quick Start
@@ -27,9 +30,51 @@ An agentic system that uses LLMs and generative AI models to create short video 
 
 3. **Generate an ad:**
 
+   **From a website URL:**
+
+   ```bash
+   uv run adgen -u https://your-business-website.com
+   ```
+
+   **From a business description:**
+
    ```bash
    uv run adgen -b "We sell eco-friendly water bottles for athletes"
    ```
+
+   **Interactive mode:**
+
+   ```bash
+   uv run adgen
+   # Follow prompts to choose URL or description input
+   ```
+
+## How It Works
+
+AdGen supports two input methods:
+
+### URL Input (Recommended)
+
+1. **Web Scraping**: Extracts content from the business website
+2. **Business Analysis**: AI analyzes the content to understand:
+   - Company overview and mission
+   - Branding style and personality
+   - Products and services
+   - Target customers and market positioning
+3. **Rich Description**: Generates a comprehensive business profile
+4. **Ad Creation**: Uses the business profile to create targeted ads
+
+### Direct Description Input
+
+1. **Business Description**: User provides direct business description
+2. **Ad Creation**: Immediately proceeds to ad concept generation
+
+Both paths then follow the same workflow:
+
+- **Concept Generation**: Creates ad strategy and messaging
+- **Human Review**: Approval checkpoint for concept
+- **Script & Visual Planning**: Generates narration and visual elements
+- **Output**: Saves all components as organized markdown files
 
 ## Configuration
 
@@ -38,6 +83,7 @@ Edit `config.yaml` to customize:
 - Provider preferences (OpenAI, Anthropic, etc.)
 - Video duration and quality settings
 - Review and approval settings
+- Web scraping preferences
 
 ## Project Structure
 
@@ -55,6 +101,8 @@ adgen/
 Currently implemented:
 
 - ✅ Project structure and configuration
+- ✅ Website content extraction and analysis
+- ✅ AI-powered business description generation
 - ✅ Provider abstractions with mock implementations
 - ✅ LangGraph workflow for ad concept generation
 - ✅ Structured LLM output
