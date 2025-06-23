@@ -20,6 +20,8 @@ from adgen.utils.markdown import (
 from adgen.workflows.ad_generation import (
     AdGenerationState,
     create_ad_generation_workflow,
+    create_concept_workflow,
+    create_media_workflow,
 )
 
 console = Console()
@@ -125,7 +127,7 @@ async def run_workflow(
         console.print(f"[dim]Business: {business_description}[/dim]")
 
     # Create workflow
-    workflow = create_ad_generation_workflow(config)
+    create_ad_generation_workflow(config)
 
     # Initialize state
     state = AdGenerationState(
@@ -133,33 +135,75 @@ async def run_workflow(
     )
 
     try:
-        # Run workflow (may include web scraping and business analysis)
+        # Phase 1: Run workflow up to concept review
         if source_url:
             console.print("[yellow]Scraping website content...[/yellow]")
         console.print("[yellow]Generating ad concept...[/yellow]")
-        result = await workflow.ainvoke(state)
+
+        # Create a workflow that stops at concept review
+        concept_workflow = create_concept_workflow(config)
+        result = await concept_workflow.ainvoke(state)
 
         # Review concept
         if config.review.get("concept_approval", True):
             approved = review_concept(result["project"])
-            result["approve_concept"] = approved
-
             if not approved:
                 console.print("[red]Concept not approved. Exiting.[/red]")
                 return
         else:
+            approved = True
+
+        # Phase 2: Continue with script, visual plan, and media generation if approved
+        if approved:
+            console.print(
+                "[yellow]Generating script, visual plan, and media...[/yellow]"
+            )
             result["approve_concept"] = True
 
-        # Continue with script and visual plan if approved
-        if result["approve_concept"]:
-            console.print("[yellow]Generating script and visual plan...[/yellow]")
+            # Continue the workflow from where we left off
+            media_workflow = create_media_workflow(config)
+            result = await media_workflow.ainvoke(result)
 
-            # Note: In a more complete implementation, we'd continue the workflow
-            # For now, we'll just display what we have
+            # Check if video was generated
+            if result["project"].assets:
+                assets = result["project"].assets
+                if assets.final_video_path:
+                    console.print(
+                        f"[green]✅ Final video composed: {assets.final_video_path}[/green]"
+                    )
+                elif assets.scene_clips:
+                    console.print(
+                        f"[green]✅ {len(assets.scene_clips)} scene clips generated[/green]"
+                    )
+                elif assets.video_path:
+                    console.print(
+                        f"[green]✅ Video generated: {assets.video_path}[/green]"
+                    )
+
+            if result["project"].status in [
+                "video_generation_failed",
+                "video_composition_failed",
+            ]:
+                console.print(
+                    "[yellow]⚠️ Video generation failed, but other components completed[/yellow]"
+                )
+
             review_script_and_plan(result["project"])
 
-            console.print("[green]✅ Ad concept and plan generation complete![/green]")
+            console.print("[green]✅ Ad generation workflow complete![/green]")
             console.print("[blue]Project files saved in: outputs/concepts/[/blue]")
+            if result["project"].assets:
+                assets = result["project"].assets
+                if assets.final_video_path:
+                    console.print(
+                        f"[blue]Final composed video: {assets.final_video_path}[/blue]"
+                    )
+                elif assets.scene_clips:
+                    console.print(
+                        f"[blue]Scene clips ({len(assets.scene_clips)}): {[str(p) for p in assets.scene_clips]}[/blue]"
+                    )
+                elif assets.video_path:
+                    console.print(f"[blue]Generated video: {assets.video_path}[/blue]")
 
     except Exception as e:
         console.print(f"[red]Error during workflow execution: {e}[/red]")
