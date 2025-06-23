@@ -1,26 +1,25 @@
-from typing import Optional
-
-import click
 import asyncio
 from datetime import datetime
 from pathlib import Path
+
+import click
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Confirm
 
 from adgen.models.ad import AdProject
-from adgen.workflows.ad_generation import (
-    create_ad_generation_workflow,
-    AdGenerationState,
-)
 from adgen.utils.config import load_config
 from adgen.utils.markdown import (
     generate_concept_markdown,
+    generate_full_project_markdown,
     generate_script_markdown,
     generate_visual_plan_markdown,
-    generate_full_project_markdown,
     save_markdown,
+)
+from adgen.workflows.ad_generation import (
+    AdGenerationState,
+    create_ad_generation_workflow,
 )
 
 console = Console()
@@ -80,7 +79,7 @@ def review_script_and_plan(project: AdProject) -> bool:
 
 
 async def run_workflow(
-    business_description: str, config_path: Optional[str] = None
+    business_description: str, config_path: str | None = None
 ) -> None:
     """Run the ad generation workflow."""
 
@@ -139,7 +138,7 @@ async def run_workflow(
             review_script_and_plan(result["project"])
 
             console.print("[green]✅ Ad concept and plan generation complete![/green]")
-            console.print(f"[blue]Project files saved in: outputs/concepts/[/blue]")
+            console.print("[blue]Project files saved in: outputs/concepts/[/blue]")
 
     except Exception as e:
         console.print(f"[red]Error during workflow execution: {e}[/red]")

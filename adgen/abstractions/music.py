@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 from pathlib import Path
 
 
@@ -11,8 +10,8 @@ class MusicProvider(ABC):
         self,
         prompt: str,
         duration_seconds: int = 15,
-        genre: Optional[str] = None,
-        mood: Optional[str] = None,
+        genre: str | None = None,
+        mood: str | None = None,
         **kwargs,
     ) -> Path:
         """Generate background music from text prompt."""
@@ -29,8 +28,8 @@ class SunoProvider(MusicProvider):
         self,
         prompt: str,
         duration_seconds: int = 15,
-        genre: Optional[str] = None,
-        mood: Optional[str] = None,
+        genre: str | None = None,
+        mood: str | None = None,
         **kwargs,
     ) -> Path:
         # TODO: Implement Suno API integration
@@ -47,8 +46,8 @@ class UdioProvider(MusicProvider):
         self,
         prompt: str,
         duration_seconds: int = 15,
-        genre: Optional[str] = None,
-        mood: Optional[str] = None,
+        genre: str | None = None,
+        mood: str | None = None,
         **kwargs,
     ) -> Path:
         # TODO: Implement Udio API integration
@@ -61,10 +60,10 @@ class MockMusicProvider(MusicProvider):
     async def generate_music(
         self,
         prompt: str,
-        duration_seconds: int = 15,
-        genre: Optional[str] = None,
-        mood: Optional[str] = None,
-        **kwargs,
+        _duration_seconds: int = 15,
+        _genre: str | None = None,
+        _mood: str | None = None,
+        **_kwargs,
     ) -> Path:
         """Return mock music path for testing."""
         mock_path = Path(f"outputs/media/mock_music_{hash(prompt)}.mp3")
@@ -78,7 +77,7 @@ class MusicFactory:
 
     @staticmethod
     def create_provider(
-        provider_type: str, api_key: Optional[str] = None
+        provider_type: str, api_key: str | None = None
     ) -> MusicProvider:
         """Create a music provider instance."""
         if provider_type.lower() == "suno":

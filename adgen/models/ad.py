@@ -1,6 +1,6 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
 from pathlib import Path
+
+from pydantic import BaseModel, Field
 
 
 class AdConcept(BaseModel):
@@ -29,19 +29,19 @@ class AdScript(BaseModel):
 class VisualPlan(BaseModel):
     """Represents the visual plan for the advertisement."""
 
-    scenes: List[str] = Field(description="List of visual scenes/shots")
+    scenes: list[str] = Field(description="List of visual scenes/shots")
     visual_style: str = Field(description="Overall visual style description")
-    color_palette: List[str] = Field(description="Suggested color palette")
-    text_overlays: List[str] = Field(description="Text overlays to display")
+    color_palette: list[str] = Field(description="Suggested color palette")
+    text_overlays: list[str] = Field(description="Text overlays to display")
 
 
 class AdAssets(BaseModel):
     """Represents generated media assets for the advertisement."""
 
-    video_path: Optional[Path] = None
-    audio_path: Optional[Path] = None
-    music_path: Optional[Path] = None
-    final_video_path: Optional[Path] = None
+    video_path: Path | None = None
+    audio_path: Path | None = None
+    music_path: Path | None = None
+    final_video_path: Path | None = None
 
 
 class AdProject(BaseModel):
@@ -51,10 +51,10 @@ class AdProject(BaseModel):
     business_description: str
 
     # Generated content
-    concept: Optional[AdConcept] = None
-    script: Optional[AdScript] = None
-    visual_plan: Optional[VisualPlan] = None
-    assets: Optional[AdAssets] = None
+    concept: AdConcept | None = None
+    script: AdScript | None = None
+    visual_plan: VisualPlan | None = None
+    assets: AdAssets | None = None
 
     # Metadata
     project_id: str

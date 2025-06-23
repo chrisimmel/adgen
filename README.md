@@ -55,7 +55,7 @@ adgen/
 Currently implemented:
 
 - ✅ Project structure and configuration
-- ✅ Provider abstractions with mock implementations  
+- ✅ Provider abstractions with mock implementations
 - ✅ LangGraph workflow for ad concept generation
 - ✅ Structured LLM output
 - ✅ CLI interface with human review points
@@ -66,4 +66,3 @@ Coming next:
 - 🔲 Actual API integrations for video/audio/music generation
 - 🔲 Video composition with MoviePy
 - 🔲 FastAPI service interface
-  

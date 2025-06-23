@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 from pathlib import Path
 
 
@@ -58,9 +57,9 @@ class MockVideoProvider(VideoProvider):
     async def generate_video(
         self,
         prompt: str,
-        duration_seconds: int = 15,
-        aspect_ratio: str = "16:9",
-        **kwargs,
+        _duration_seconds: int = 15,
+        _aspect_ratio: str = "16:9",
+        **_kwargs,
     ) -> Path:
         """Return mock video path for testing."""
         mock_path = Path(f"outputs/media/mock_video_{hash(prompt)}.mp4")
@@ -74,7 +73,7 @@ class VideoFactory:
 
     @staticmethod
     def create_provider(
-        provider_type: str, api_key: Optional[str] = None
+        provider_type: str, api_key: str | None = None
     ) -> VideoProvider:
         """Create a video provider instance."""
         if provider_type.lower() == "runwayml":

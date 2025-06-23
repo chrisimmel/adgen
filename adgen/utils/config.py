@@ -1,10 +1,10 @@
 import os
-import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
+import yaml
 
 
 class Config(BaseModel):
@@ -15,7 +15,7 @@ class Config(BaseModel):
     output_dir: str = "outputs"
 
     # Provider configurations
-    providers: Dict[str, str] = {
+    providers: dict[str, str] = {
         "llm": "openai",
         "video": "mock",
         "audio": "mock",
@@ -23,15 +23,15 @@ class Config(BaseModel):
     }
 
     # Service-specific settings
-    llm: Dict[str, Any] = {}
-    video: Dict[str, Any] = {}
-    audio: Dict[str, Any] = {}
-    music: Dict[str, Any] = {}
-    review: Dict[str, Any] = {}
+    llm: dict[str, Any] = {}
+    video: dict[str, Any] = {}
+    audio: dict[str, Any] = {}
+    music: dict[str, Any] = {}
+    review: dict[str, Any] = {}
 
 
 def load_config(
-    config_path: Optional[Path] = None, env_file: Optional[Path] = None
+    config_path: Path | None = None, env_file: Path | None = None
 ) -> Config:
     """Load configuration from YAML file and environment variables."""
 
@@ -51,13 +51,13 @@ def load_config(
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config_data = yaml.safe_load(f)
 
     return Config(**config_data)
 
 
-def get_api_key(provider: str, service_type: str = "llm") -> Optional[str]:
+def get_api_key(provider: str, service_type: str = "llm") -> str | None:
     """Get API key for a specific provider and service type from environment."""
 
     # Map provider names to environment variable names

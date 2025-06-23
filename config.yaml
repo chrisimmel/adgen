@@ -6,10 +6,10 @@ output_dir: "outputs"
 
 # Provider Defaults
 providers:
-  llm: "anthropic"  # openai, anthropic
-  video: "mock"  # runwayml, pika, mock
-  audio: "mock"  # elevenlabs, openai, mock
-  music: "mock"  # suno, udio, mock
+  llm: "anthropic" # openai, anthropic
+  video: "mock" # runwayml, pika, mock
+  audio: "mock" # elevenlabs, openai, mock
+  music: "mock" # suno, udio, mock
 
 # LLM Settings
 llm:

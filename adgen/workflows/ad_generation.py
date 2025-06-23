@@ -1,14 +1,15 @@
-from typing import Dict, Any
-from langgraph.graph import StateGraph, END
+from typing import Any
+
+from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from langgraph.graph import END, StateGraph
 
-from adgen.models.ad import AdProject, AdConcept, AdScript, VisualPlan
+from adgen.models.ad import AdConcept, AdProject, AdScript, VisualPlan
 from adgen.utils.config import Config, get_api_key
 
 
-class AdGenerationState(Dict[str, Any]):
+class AdGenerationState(dict[str, Any]):
     """State object for the ad generation workflow."""
 
     project: AdProject
@@ -162,7 +163,7 @@ def should_continue_to_media(state: AdGenerationState) -> str:
         return END
 
 
-def create_ad_generation_workflow(config: Config) -> StateGraph:
+def create_ad_generation_workflow(_config: Config) -> StateGraph:
     """Create the ad generation workflow using LangGraph."""
 
     workflow = StateGraph(AdGenerationState)
