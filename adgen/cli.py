@@ -79,9 +79,24 @@ def review_script_and_plan(project: AdProject) -> bool:
 
 
 async def run_workflow(
-    business_description: str, config_path: str | None = None
+    source_url: str | None = None,
+    business_description: str | None = None,
+    config_path: str | None = None,
 ) -> None:
     """Run the ad generation workflow."""
+
+    # Validate input
+    if not source_url and not business_description:
+        console.print(
+            "[red]Error: Either --url or --business-description must be provided[/red]"
+        )
+        return
+
+    if source_url and business_description:
+        console.print(
+            "[red]Error: Provide either --url or --business-description, not both[/red]"
+        )
+        return
 
     # Load configuration
     try:
@@ -96,6 +111,7 @@ async def run_workflow(
     # Create project
     project_id = f"ad_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     project = AdProject(
+        source_url=source_url,
         business_description=business_description,
         project_id=project_id,
         created_at=datetime.now().isoformat(),
@@ -103,7 +119,10 @@ async def run_workflow(
     )
 
     console.print(f"[blue]Starting ad generation for project: {project_id}[/blue]")
-    console.print(f"[dim]Business: {business_description}[/dim]")
+    if source_url:
+        console.print(f"[dim]Source URL: {source_url}[/dim]")
+    else:
+        console.print(f"[dim]Business: {business_description}[/dim]")
 
     # Create workflow
     workflow = create_ad_generation_workflow(config)
@@ -114,7 +133,9 @@ async def run_workflow(
     )
 
     try:
-        # Run concept generation
+        # Run workflow (may include web scraping and business analysis)
+        if source_url:
+            console.print("[yellow]Scraping website content...[/yellow]")
         console.print("[yellow]Generating ad concept...[/yellow]")
         result = await workflow.ainvoke(state)
 
@@ -147,22 +168,43 @@ async def run_workflow(
 
 @click.command()
 @click.option(
+    "--url",
+    "-u",
+    help="URL of the business website to analyze",
+)
+@click.option(
     "--business-description",
     "-b",
-    prompt="Describe your business and what you want to advertise",
-    help="Description of the business and product/service to advertise",
+    help="Direct description of the business and product/service to advertise",
 )
 @click.option(
     "--config", "-c", help="Path to configuration file", default="config.yaml"
 )
-def main(business_description: str, config: str) -> None:
-    """Generate AI-powered video advertisements."""
+def main(url: str | None, business_description: str | None, config: str) -> None:
+    """Generate AI-powered video advertisements.
+
+    Provide either a website URL to analyze or a direct business description.
+    """
 
     console.print("[bold blue]🎥 AdGen - AI Video Ad Generator[/bold blue]")
     console.print()
 
+    # If neither provided, prompt for one
+    if not url and not business_description:
+        console.print("Choose input method:")
+        console.print("1. Website URL (analyzes website content)")
+        console.print("2. Direct business description")
+        choice = click.prompt("Enter choice (1 or 2)", type=click.Choice(["1", "2"]))
+
+        if choice == "1":
+            url = click.prompt("Enter website URL")
+        else:
+            business_description = click.prompt(
+                "Describe your business and what you want to advertise"
+            )
+
     # Run the async workflow
-    asyncio.run(run_workflow(business_description, config))
+    asyncio.run(run_workflow(url, business_description, config))
 
 
 if __name__ == "__main__":
