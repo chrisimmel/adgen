@@ -1,6 +1,6 @@
 # Quiksilver Ad with Veo 3
 
-./veo3_video_8129669891560862276_1750679506.mp4
+https://github.com/user-attachments/assets/6031deb6-2b99-435a-a60d-bb553ccba67b
 
 This is the first ad generated using Veo 3. It was created with the following command:
 
