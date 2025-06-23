@@ -1,0 +1,57 @@
+# AdGen Configuration
+
+# General Settings
+ad_duration_seconds: 15
+output_dir: "outputs"
+
+# Provider Defaults
+providers:
+  llm: "anthropic" # openai, anthropic
+  video: "mock" # runwayml, pika, mock
+  audio: "mock" # elevenlabs, openai, mock
+  music: "mock" # suno, udio, mock
+
+# LLM Settings
+llm:
+  openai:
+    model: "gpt-4"
+    temperature: 0.7
+  anthropic:
+    model: "claude-sonnet-4-0"
+    temperature: 0.7
+
+# Video Generation Settings
+video:
+  aspect_ratio: "16:9"
+  quality: "high"
+  runwayml:
+    model: "gen3"
+  pika:
+    model: "1.0"
+
+# Audio Generation Settings
+audio:
+  format: "wav"
+  sample_rate: 44100
+  elevenlabs:
+    voice_id: "default"
+    stability: 0.5
+    similarity_boost: 0.75
+  openai:
+    voice: "alloy"
+    speed: 1.0
+
+# Music Generation Settings
+music:
+  format: "mp3"
+  bitrate: 320
+  suno:
+    style: "instrumental"
+  udio:
+    style: "background"
+
+# Human Review Points
+review:
+  concept_approval: true
+  final_approval: true
+  auto_proceed: false
