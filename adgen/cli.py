@@ -19,7 +19,6 @@ from adgen.utils.markdown import (
 )
 from adgen.workflows.ad_generation import (
     AdGenerationState,
-    create_ad_generation_workflow,
     create_concept_workflow,
     create_media_workflow,
 )
@@ -125,9 +124,6 @@ async def run_workflow(
         console.print(f"[dim]Source URL: {source_url}[/dim]")
     else:
         console.print(f"[dim]Business: {business_description}[/dim]")
-
-    # Create workflow
-    create_ad_generation_workflow(config)
 
     # Initialize state
     state = AdGenerationState(

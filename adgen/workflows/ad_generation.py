@@ -235,6 +235,11 @@ async def generate_visual_plan_node(state: AdGenerationState) -> AdGenerationSta
     concept = state["project"].concept
     script = state["project"].script
 
+    config = state["config"]
+    provider_type = config.providers.get("video", "mock")
+    provider_config = config.video.get(provider_type, {})
+    max_scenes = provider_config.get("max_scenes", 5)
+
     prompt = f"""
     Create a detailed visual plan for a {state["config"].ad_duration_seconds}-second video ad:
 
@@ -242,7 +247,7 @@ async def generate_visual_plan_node(state: AdGenerationState) -> AdGenerationSta
     Script: {script.hook} {script.main_content} {script.call_to_action}
 
     Provide:
-    - 3-5 specific visual scenes/shots
+    - 3-{max_scenes} specific visual scenes/shots
     - Overall visual style description
     - Color palette (3-5 colors)
     - Text overlays to display
@@ -351,7 +356,6 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
 
         else:
             # Multi-scene mode (existing logic)
-            max_scenes = provider_config.get("max_scenes", 5)
             min_duration = provider_config.get("min_duration", 3)
             max_duration = provider_config.get("max_duration", 10)
 
@@ -360,16 +364,20 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
 
             # Calculate optimal scene count to fit within target duration
             target_duration = config.ad_duration_seconds
-            optimal_scenes = min(
-                max_scenes, target_duration // min_duration, len(scenes)
-            )
 
-            # Select the most important scenes if we need to limit
-            if len(scenes) > optimal_scenes:
-                print(
-                    f"Limiting to {optimal_scenes} scenes (from {len(scenes)}) to fit {target_duration}s target"
-                )
-                scenes = scenes[:optimal_scenes]
+            # Disable limiting scenes for now. We will instead trim them in the compose
+            # step if we need to.
+
+            # optimal_scenes = min(
+            #     max_scenes, target_duration // min_duration, len(scenes)
+            # )
+
+            # # Select the most important scenes if we need to limit
+            # if len(scenes) > optimal_scenes:
+            #     print(
+            #         f"Limiting to {optimal_scenes} scenes (from {len(scenes)}) to fit {target_duration}s target"
+            #     )
+            #     scenes = scenes[:optimal_scenes]
 
             total_scenes = len(scenes)
             scene_duration = min(
@@ -464,6 +472,46 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
             print("No valid clips to compose")
             state["project"].status = "video_composition_failed"
             return state
+
+        # Calculate total duration and trim if necessary
+        target_duration = state["config"].ad_duration_seconds
+        total_duration = sum(clip.duration for clip in clips)
+
+        print(f"Total clip duration: {total_duration}s, target: {target_duration}s")
+
+        if total_duration > target_duration:
+            print(f"Trimming clips to fit {target_duration}s target duration")
+
+            # Calculate proportional duration for each clip
+            scale_factor = target_duration / total_duration
+            trimmed_clips = []
+
+            for i, clip in enumerate(clips):
+                # Calculate new duration for this clip
+                new_duration = clip.duration * scale_factor
+
+                # Preserve minimum durations for key scenes
+                if i == 0 or i == len(clips) - 1:
+                    # First and last scenes get at least 2 seconds
+                    new_duration = max(2.0, new_duration)
+                else:
+                    # Middle scenes get at least 1 second
+                    new_duration = max(1.0, new_duration)
+
+                # Don't extend clips beyond their original duration
+                new_duration = min(new_duration, clip.duration)
+
+                # Trim the clip to the new duration
+                trimmed_clip = clip.subclipped(0, new_duration)
+                trimmed_clips.append(trimmed_clip)
+
+                print(
+                    f"Clip {i+1}: {clip.duration:.1f}s -> {trimmed_clip.duration:.1f}s"
+                )
+
+            clips = trimmed_clips
+            actual_duration = sum(clip.duration for clip in clips)
+            print(f"Final trimmed duration: {actual_duration:.1f}s")
 
         # Concatenate all clips
         final_clip = concatenate_videoclips(clips)
@@ -576,62 +624,6 @@ def create_media_workflow(_config: Config) -> StateGraph:
 
     # Set entry point and flow
     workflow.set_entry_point("generate_script")
-    workflow.add_edge("generate_script", "generate_visual_plan")
-    workflow.add_edge("generate_visual_plan", "generate_video")
-    workflow.add_edge("generate_video", "compose_video")
-    workflow.add_edge("compose_video", END)
-
-    return workflow.compile()
-
-
-def create_ad_generation_workflow(_config: Config) -> StateGraph:
-    """Create the ad generation workflow using LangGraph."""
-
-    workflow = StateGraph(AdGenerationState)
-
-    # Add nodes
-    workflow.add_node("scrape_web_content", scrape_web_content_node)
-    workflow.add_node(
-        "generate_business_description", generate_business_description_node
-    )
-    workflow.add_node("generate_concept", generate_concept_node)
-    workflow.add_node("review_concept", review_concept_node)
-    workflow.add_node("generate_script", generate_script_node)
-    workflow.add_node("generate_visual_plan", generate_visual_plan_node)
-    workflow.add_node("generate_video", generate_video_node)
-    workflow.add_node("compose_video", compose_video_node)
-
-    # Set entry point and routing
-    workflow.set_entry_point("route_input")
-    workflow.add_node("route_input", lambda state: state)  # Dummy node for routing
-
-    # Route based on input type
-    workflow.add_conditional_edges(
-        "route_input",
-        should_scrape_web_content,
-        {"scrape_web": "scrape_web_content", "generate_concept": "generate_concept"},
-    )
-
-    # Web scraping path
-    workflow.add_conditional_edges(
-        "scrape_web_content",
-        should_generate_business_description,
-        {
-            "generate_business_description": "generate_business_description",
-            "generate_concept": "generate_concept",
-        },
-    )
-
-    # Business description generation to concept
-    workflow.add_edge("generate_business_description", "generate_concept")
-
-    # Concept review and continuation
-    workflow.add_edge("generate_concept", "review_concept")
-    workflow.add_conditional_edges(
-        "review_concept",
-        should_continue_to_media,
-        {"generate_video": "generate_script", END: END},
-    )
     workflow.add_edge("generate_script", "generate_visual_plan")
     workflow.add_edge("generate_visual_plan", "generate_video")
     workflow.add_edge("generate_video", "compose_video")

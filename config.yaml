@@ -1,13 +1,13 @@
 # AdGen Configuration
 
 # General Settings
-ad_duration_seconds: 15
+ad_duration_seconds: 20
 output_dir: "outputs"
 
 # Provider Defaults
 providers:
   llm: "anthropic" # openai, anthropic
-  video: "veo3" # runwayml, pika, veo3, mock
+  video: "runwayml" # runwayml, pika, veo3, mock
   audio: "mock" # elevenlabs, openai, mock
   music: "mock" # suno, udio, mock
 
@@ -30,7 +30,7 @@ video:
     max_duration: 10
     min_duration: 5
     timeout_seconds: 300
-    max_scenes: 3 # Limit scenes to stay within total duration
+    max_scenes: 10 # Allow more scenes, will trim in compose step
   pika:
     model: "1.0"
     max_duration: 15
