@@ -64,7 +64,10 @@ def adjust_speed_for_duration(
 
 
 def select_voice_for_concept(
-    concept: AdConcept, default_voice: str = "alloy", default_speed: float = 1.0
+    concept: AdConcept,
+    default_voice: str = "alloy",
+    default_speed: float = 1.0,
+    provider: str = "openai",
 ) -> tuple[str, float]:
     """Select optimal voice and speed based on ad concept and target audience."""
     if not concept:
@@ -77,7 +80,25 @@ def select_voice_for_concept(
         concept.emotional_appeal.lower() if concept.emotional_appeal else ""
     )
 
-    # Voice selection logic
+    # Voice selection logic based on provider
+    if provider == "elevenlabs":
+        return _select_elevenlabs_voice(
+            audience, tone, emotional_appeal, default_voice, default_speed
+        )
+    else:
+        return _select_openai_voice(
+            audience, tone, emotional_appeal, default_voice, default_speed
+        )
+
+
+def _select_openai_voice(
+    audience: str,
+    tone: str,
+    emotional_appeal: str,
+    default_voice: str,
+    default_speed: float,
+) -> tuple[str, float]:
+    """Select OpenAI voice based on concept analysis."""
     voice = default_voice
     speed = default_speed
 
@@ -140,6 +161,108 @@ def select_voice_for_concept(
 
     # Ensure speed is within valid range
     speed = max(0.25, min(4.0, speed))
+
+    return voice, speed
+
+
+def _select_elevenlabs_voice(
+    audience: str,
+    tone: str,
+    emotional_appeal: str,
+    default_voice: str,
+    default_speed: float,
+) -> tuple[str, float]:
+    """Select ElevenLabs voice based on concept analysis."""
+    voice = default_voice
+    speed = default_speed
+
+    # Age-based selection - ElevenLabs has more diverse and realistic voices
+    if any(word in audience for word in ["young", "teen", "gen z", "millennial"]):
+        if any(word in tone for word in ["energetic", "fun", "playful", "vibrant"]):
+            if any(word in audience for word in ["male", "men", "guys"]):
+                voice = "drew"  # Young, energetic male
+            else:
+                voice = "gigi"  # Young, energetic female
+            speed = 1.1
+        elif any(word in audience for word in ["male", "men", "guys"]):
+            voice = "ryan"  # Casual, friendly male
+            speed = 1.05
+        else:
+            voice = "freya"  # Young, confident female
+            speed = 1.1
+
+    # Professional/authoritative content
+    elif any(
+        word in tone
+        for word in ["professional", "authoritative", "confident", "premium", "luxury"]
+    ):
+        if any(word in audience for word in ["executive", "professional", "business"]):
+            voice = "thomas"  # Deep, professional male
+            speed = 0.95
+        elif any(word in audience for word in ["female", "women", "ladies"]):
+            voice = "charlotte"  # Professional, confident female
+            speed = 0.95
+        else:
+            voice = "paul"  # Authoritative, mature male
+            speed = 1.0
+
+    # Storytelling/narrative content
+    elif any(
+        word in tone
+        for word in ["storytelling", "narrative", "heritage", "legacy", "authentic"]
+    ):
+        if any(word in audience for word in ["female", "women"]):
+            voice = "matilda"  # Warm, storytelling female
+        else:
+            voice = "antoni"  # Rich, narrative male
+        speed = 0.9
+
+    # Gentle/soft content
+    elif any(
+        word in tone for word in ["gentle", "soft", "caring", "nurturing", "wellness"]
+    ):
+        voice = "grace"  # Soft, caring female
+        speed = 0.95
+
+    # High-energy/action content
+    elif any(
+        word in tone
+        for word in ["energetic", "exciting", "dynamic", "action", "adventure"]
+    ):
+        if any(word in audience for word in ["male", "men"]):
+            voice = "ethan"  # Energetic, adventurous male
+        else:
+            voice = "jessie"  # Dynamic, exciting female
+        speed = 1.15
+
+    # Luxury/premium content
+    elif any(
+        word in tone for word in ["luxury", "premium", "exclusive", "sophisticated"]
+    ):
+        if any(word in audience for word in ["male", "men"]):
+            voice = "james"  # Sophisticated male
+        else:
+            voice = "serena"  # Elegant, premium female
+        speed = 0.9
+
+    # Emotional appeal adjustments
+    if "adventure" in emotional_appeal:
+        if voice == default_voice:
+            voice = "ryan"  # Adventurous male
+        speed = max(speed, 1.05)
+    elif "luxury" in emotional_appeal:
+        if voice == default_voice:
+            voice = "charlotte"  # Luxury female
+        speed = min(speed, 0.95)
+    elif "excitement" in emotional_appeal:
+        speed = max(speed, 1.1)
+    elif "trust" in emotional_appeal or "reliability" in emotional_appeal:
+        if voice == default_voice:
+            voice = "daniel"  # Trustworthy male
+        speed = max(0.9, speed)
+
+    # Ensure speed is within valid range (ElevenLabs works well in this range)
+    speed = max(0.7, min(1.3, speed))
 
     return voice, speed
 
@@ -597,7 +720,7 @@ async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
 
         # Smart voice and speed selection based on ad concept
         voice, speed = select_voice_for_concept(
-            state["project"].concept, default_voice, default_speed
+            state["project"].concept, default_voice, default_speed, provider_type
         )
 
         # Adjust speed for target video duration

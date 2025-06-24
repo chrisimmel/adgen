@@ -352,6 +352,13 @@ async def resume_workflow(
     checkpoint_name: str, config_path: str, restart_from: str | None = None
 ) -> None:
     """Resume workflow from a checkpoint, optionally restarting from a specific step."""
+    from pathlib import Path
+    import time
+
+    from moviepy import CompositeAudioClip
+    from moviepy.audio.io.AudioFileClip import AudioFileClip
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+
     if restart_from:
         console.print(
             f"[blue]🔄 Restarting workflow from step '{restart_from}' using checkpoint: {checkpoint_name}[/blue]"
@@ -465,12 +472,6 @@ async def resume_workflow(
                     "[yellow]Applying audio overlay to existing final video...[/yellow]"
                 )
                 # Apply audio directly to existing final video using smart audio logic
-                from pathlib import Path
-                import time
-
-                from moviepy import CompositeAudioClip
-                from moviepy.audio.io.AudioFileClip import AudioFileClip
-                from moviepy.video.io.VideoFileClip import VideoFileClip
 
                 try:
                     final_video_path = result["project"].assets.final_video_path
@@ -598,12 +599,6 @@ async def resume_workflow(
                     "[yellow]Applying audio overlay to existing final video...[/yellow]"
                 )
                 # Apply audio directly to existing final video using smart audio logic
-                from pathlib import Path
-                import time
-
-                from moviepy import CompositeAudioClip
-                from moviepy.audio.io.AudioFileClip import AudioFileClip
-                from moviepy.video.io.VideoFileClip import VideoFileClip
 
                 try:
                     final_video_path = result["project"].assets.final_video_path
