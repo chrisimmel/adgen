@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 from adgen.models.ad import AdProject
+from adgen.utils.checkpoint import WorkflowResumption
 from adgen.utils.config import load_config
 from adgen.utils.markdown import (
     generate_concept_markdown,
@@ -19,6 +20,7 @@ from adgen.utils.markdown import (
 )
 from adgen.workflows.ad_generation import (
     AdGenerationState,
+    checkpoint_manager,
     create_concept_workflow,
     create_media_workflow,
 )
@@ -214,7 +216,86 @@ async def run_workflow(
         console.print("[dim]Check your API keys and configuration.[/dim]")
 
 
-@click.command()
+def list_checkpoints() -> None:
+    """List all available checkpoints."""
+    console.print("[bold blue]📋 Available Checkpoints[/bold blue]")
+    console.print()
+
+    checkpoints = checkpoint_manager.list_checkpoints()
+
+    if not checkpoints:
+        console.print("[yellow]No checkpoints found.[/yellow]")
+        return
+
+    for checkpoint in checkpoints:
+        console.print(f"[bold]{checkpoint['name']}[/bold]")
+        console.print(f"  Project ID: {checkpoint['project_id']}")
+        console.print(f"  Status: {checkpoint['status']}")
+        console.print(f"  Timestamp: {checkpoint['timestamp']}")
+        console.print()
+
+
+async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
+    """Resume workflow from a checkpoint."""
+    console.print(
+        f"[blue]🔄 Resuming workflow from checkpoint: {checkpoint_name}[/blue]"
+    )
+
+    resumption = WorkflowResumption(checkpoint_manager)
+    resume_result = resumption.resume_workflow(checkpoint_name)
+
+    if not resume_result:
+        console.print("[red]Failed to resume workflow[/red]")
+        return
+
+    state, next_step = resume_result
+
+    # Load configuration
+    try:
+        config = load_config(Path(config_path) if config_path else None)
+        # Update state with current config (in case config changed)
+        state["config"] = config
+
+        # Convert to AdGenerationState
+        state = AdGenerationState(state)
+    except Exception as e:
+        console.print(f"[red]Configuration error: {e}[/red]")
+        return
+
+    console.print("[green]✅ Checkpoint loaded successfully[/green]")
+    console.print(f"[dim]Project: {state['project'].project_id}[/dim]")
+    console.print(f"[dim]Current status: {state['project'].status}[/dim]")
+    console.print(f"[dim]Next step: {next_step}[/dim]")
+
+    try:
+        if next_step == "media_workflow":
+            # Need concept approval first
+            if not review_concept(state["project"]):
+                console.print("[red]Concept not approved. Workflow stopped.[/red]")
+                return
+
+            state["approve_concept"] = True
+
+            # Run media workflow
+            console.print("[yellow]Continuing with media generation...[/yellow]")
+            media_workflow = create_media_workflow(config)
+            result = await media_workflow.ainvoke(state)
+
+            # Display results same as normal workflow
+            review_script_and_plan(result["project"])
+
+            console.print("[green]✅ Resumed workflow complete![/green]")
+
+        else:
+            console.print(
+                f"[yellow]Resume from {next_step} not yet implemented[/yellow]"
+            )
+
+    except Exception as e:
+        console.print(f"[red]Error during resumed workflow: {e}[/red]")
+
+
+@click.group(invoke_without_command=True)
 @click.option(
     "--url",
     "-u",
@@ -228,7 +309,52 @@ async def run_workflow(
 @click.option(
     "--config", "-c", help="Path to configuration file", default="config.yaml"
 )
-def main(url: str | None, business_description: str | None, config: str) -> None:
+@click.pass_context
+def cli(
+    ctx: click.Context, url: str | None, business_description: str | None, config: str
+):
+    """AdGen - AI Video Ad Generator"""
+    # If no subcommand was invoked, run generate workflow directly (backward compatibility)
+    if ctx.invoked_subcommand is None:
+        # Backward compatibility: run generate workflow directly
+        console.print("[bold blue]🎥 AdGen - AI Video Ad Generator[/bold blue]")
+        console.print()
+
+        # If neither provided, prompt for one
+        if not url and not business_description:
+            console.print("Choose input method:")
+            console.print("1. Website URL (analyzes website content)")
+            console.print("2. Direct business description")
+            choice = click.prompt(
+                "Enter choice (1 or 2)", type=click.Choice(["1", "2"])
+            )
+
+            if choice == "1":
+                url = click.prompt("Enter website URL")
+            else:
+                business_description = click.prompt(
+                    "Describe your business and what you want to advertise"
+                )
+
+        # Run the async workflow
+        asyncio.run(run_workflow(url, business_description, config))
+
+
+@cli.command()
+@click.option(
+    "--url",
+    "-u",
+    help="URL of the business website to analyze",
+)
+@click.option(
+    "--business-description",
+    "-b",
+    help="Direct description of the business and product/service to advertise",
+)
+@click.option(
+    "--config", "-c", help="Path to configuration file", default="config.yaml"
+)
+def generate(url: str | None, business_description: str | None, config: str) -> None:
     """Generate AI-powered video advertisements.
 
     Provide either a website URL to analyze or a direct business description.
@@ -255,5 +381,59 @@ def main(url: str | None, business_description: str | None, config: str) -> None
     asyncio.run(run_workflow(url, business_description, config))
 
 
+@cli.command()
+def checkpoints():
+    """List all available workflow checkpoints."""
+    list_checkpoints()
+
+
+@cli.command()
+@click.argument("checkpoint_name")
+@click.option(
+    "--config", "-c", help="Path to configuration file", default="config.yaml"
+)
+def resume(checkpoint_name: str, config: str):
+    """Resume workflow from a checkpoint."""
+    asyncio.run(resume_workflow(checkpoint_name, config))
+
+
+@cli.command()
+@click.argument("checkpoint_name")
+def delete(checkpoint_name: str):
+    """Delete a workflow checkpoint."""
+    if checkpoint_manager.delete_checkpoint(checkpoint_name):
+        console.print(f"[green]✅ Checkpoint '{checkpoint_name}' deleted[/green]")
+    else:
+        console.print(f"[red]❌ Checkpoint '{checkpoint_name}' not found[/red]")
+
+
+# For backward compatibility, keep the old main function
+def main(
+    url: str | None = None,
+    business_description: str | None = None,
+    config: str = "config.yaml",
+) -> None:
+    """Generate AI-powered video advertisements."""
+    console.print("[bold blue]🎥 AdGen - AI Video Ad Generator[/bold blue]")
+    console.print()
+
+    # If neither provided, prompt for one
+    if not url and not business_description:
+        console.print("Choose input method:")
+        console.print("1. Website URL (analyzes website content)")
+        console.print("2. Direct business description")
+        choice = click.prompt("Enter choice (1 or 2)", type=click.Choice(["1", "2"]))
+
+        if choice == "1":
+            url = click.prompt("Enter website URL")
+        else:
+            business_description = click.prompt(
+                "Describe your business and what you want to advertise"
+            )
+
+    # Run the async workflow
+    asyncio.run(run_workflow(url, business_description, config))
+
+
 if __name__ == "__main__":
-    main()
+    cli()

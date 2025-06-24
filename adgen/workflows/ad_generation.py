@@ -8,6 +8,7 @@ from langgraph.graph import END, StateGraph
 from adgen.abstractions.audio import AudioFactory
 from adgen.abstractions.video import VideoFactory
 from adgen.models.ad import AdAssets, AdConcept, AdProject, AdScript, VisualPlan
+from adgen.utils.checkpoint import CheckpointManager, create_checkpoint_decorator
 from adgen.utils.config import Config, get_api_key
 from adgen.utils.markdown import get_markdown_from_web_page
 
@@ -19,6 +20,11 @@ class AdGenerationState(dict[str, Any]):
     config: Config
     approve_concept: bool = False
     approve_final: bool = False
+
+
+# Global checkpoint manager
+checkpoint_manager = CheckpointManager()
+checkpoint_after = create_checkpoint_decorator(checkpoint_manager)
 
 
 def create_llm(config: Config) -> BaseChatModel:
@@ -143,6 +149,7 @@ def should_generate_business_description(state: AdGenerationState) -> str:
         return "generate_concept"
 
 
+@checkpoint_after
 async def generate_concept_node(state: AdGenerationState) -> AdGenerationState:
     """Generate the ad concept from business description."""
     llm = create_llm(state["config"]).with_structured_output(AdConcept)
@@ -188,6 +195,7 @@ async def review_concept_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def generate_script_node(state: AdGenerationState) -> AdGenerationState:
     """Generate the ad script based on the approved concept."""
     if not state["approve_concept"]:
@@ -227,6 +235,7 @@ async def generate_script_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def generate_visual_plan_node(state: AdGenerationState) -> AdGenerationState:
     """Generate visual plan for the advertisement."""
     if not state["approve_concept"]:
@@ -284,6 +293,7 @@ def _create_comprehensive_prompt(concept, script, visual_plan, duration_seconds)
     return comprehensive_prompt
 
 
+@checkpoint_after
 async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     """Generate multiple scene-based video clips using the visual plan and script."""
     if not state["approve_concept"]:
@@ -431,6 +441,7 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
     """Generate voice-over audio from the script."""
     if not state["approve_concept"]:
@@ -495,6 +506,7 @@ async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
     """Compose individual scene clips into a final video using MoviePy."""
     if not state["approve_concept"]:
