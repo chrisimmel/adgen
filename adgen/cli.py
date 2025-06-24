@@ -307,6 +307,20 @@ async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
 
             console.print("[green]✅ Resumed workflow complete![/green]")
 
+        elif next_step == "compose_video":
+            console.print("[yellow]Continuing with video composition...[/yellow]")
+
+            # Import and run composition node
+            from adgen.workflows.ad_generation import compose_video_node
+
+            state["approve_concept"] = True  # Must be approved to reach this point
+            result = await compose_video_node(state)
+
+            # Display results
+            review_script_and_plan(result["project"])
+
+            console.print("[green]✅ Resumed workflow complete![/green]")
+
         elif next_step == "complete":
             console.print("[green]✅ Workflow is already completed![/green]")
 

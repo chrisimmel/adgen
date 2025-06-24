@@ -593,12 +593,13 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
         # Concatenate all clips
         final_clip = concatenate_videoclips(clips)
 
-        # Add voice-over audio if available
+        # Add voice-over audio if available with smart audio handling
         if state["project"].assets and state["project"].assets.audio_path:
             audio_path = state["project"].assets.audio_path
             if audio_path.exists():
                 print(f"Adding voice-over audio: {audio_path}")
                 try:
+                    from moviepy import CompositeAudioClip
                     from moviepy.audio.io.AudioFileClip import AudioFileClip
 
                     audio_clip = AudioFileClip(str(audio_path))
@@ -614,12 +615,43 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
                             f"Audio ({audio_clip.duration:.1f}s) is shorter than video ({final_clip.duration:.1f}s)"
                         )
 
-                    # Set the audio to the video
-                    final_clip = final_clip.with_audio(audio_clip)
-                    print("Voice-over audio successfully added")
+                    # Smart audio handling: Check if video provider generates audio
+                    video_provider = state["config"].providers.get("video", "runwayml")
+                    video_config = state["config"].video.get(video_provider, {})
+                    generates_audio = video_config.get("generate_audio", False)
+
+                    if generates_audio and final_clip.audio is not None:
+                        # Video has original audio (e.g., Veo 3) - create overlay
+                        print(
+                            f"Detected original audio in {video_provider} video - creating audio overlay"
+                        )
+                        original_audio = final_clip.audio
+                        print(
+                            f"Original audio duration: {original_audio.duration:.1f}s"
+                        )
+
+                        # Mix original audio (30%) with voice-over (100%)
+                        original_reduced = original_audio.with_volume_scaled(0.3)
+                        composite_audio = CompositeAudioClip(
+                            [original_reduced, audio_clip]
+                        )
+                        final_clip = final_clip.with_audio(composite_audio)
+                        print(
+                            "Voice-over audio overlaid with original audio (30% + 100%)"
+                        )
+                    else:
+                        # No original audio worth preserving (e.g., Runway) - replace completely
+                        print(
+                            f"No original audio in {video_provider} video - replacing with voice-over"
+                        )
+                        final_clip = final_clip.with_audio(audio_clip)
+                        print("Voice-over audio successfully added as replacement")
 
                 except Exception as e:
                     print(f"Failed to add audio: {e}")
+                    import traceback
+
+                    traceback.print_exc()
                     # Continue without audio
             else:
                 print(f"Audio file not found: {audio_path}")
