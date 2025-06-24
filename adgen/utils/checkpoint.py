@@ -190,7 +190,7 @@ class WorkflowResumption:
 
         if next_step == "complete":
             print("Workflow already completed!")
-            return state
+            return state, "complete"
 
         print(f"Resuming workflow from: {current_status}")
         print(f"Next step: {next_step}")

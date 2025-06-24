@@ -286,6 +286,26 @@ async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
 
             console.print("[green]✅ Resumed workflow complete![/green]")
 
+        elif next_step == "complete":
+            console.print("[green]✅ Workflow is already completed![/green]")
+
+            # Display the final results
+            review_script_and_plan(state["project"])
+
+            # Show final assets if available
+            if state["project"].assets:
+                assets = state["project"].assets
+                if assets.final_video_path:
+                    console.print(
+                        f"[blue]Final video: {assets.final_video_path}[/blue]"
+                    )
+                elif assets.scene_clips:
+                    console.print(
+                        f"[blue]Scene clips: {len(assets.scene_clips)} files[/blue]"
+                    )
+                if assets.audio_path:
+                    console.print(f"[blue]Audio: {assets.audio_path}[/blue]")
+
         else:
             console.print(
                 f"[yellow]Resume from {next_step} not yet implemented[/yellow]"
