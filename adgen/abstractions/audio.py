@@ -72,8 +72,7 @@ class OpenAITTSProvider(AudioProvider):
 
                 # Write audio data
                 with open(output_path, "wb") as f:
-                    async for chunk in response.iter_bytes():
-                        f.write(chunk)
+                    f.write(response.content)
 
                 print(f"Audio saved to: {output_path}")
                 return output_path
