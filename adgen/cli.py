@@ -295,49 +295,10 @@ async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
         console.print(f"[red]Error during resumed workflow: {e}[/red]")
 
 
-@click.group(invoke_without_command=True)
-@click.option(
-    "--url",
-    "-u",
-    help="URL of the business website to analyze",
-)
-@click.option(
-    "--business-description",
-    "-b",
-    help="Direct description of the business and product/service to advertise",
-)
-@click.option(
-    "--config", "-c", help="Path to configuration file", default="config.yaml"
-)
-@click.pass_context
-def cli(
-    ctx: click.Context, url: str | None, business_description: str | None, config: str
-):
+@click.group()
+def cli():
     """AdGen - AI Video Ad Generator"""
-    # If no subcommand was invoked, run generate workflow directly (backward compatibility)
-    if ctx.invoked_subcommand is None:
-        # Backward compatibility: run generate workflow directly
-        console.print("[bold blue]🎥 AdGen - AI Video Ad Generator[/bold blue]")
-        console.print()
-
-        # If neither provided, prompt for one
-        if not url and not business_description:
-            console.print("Choose input method:")
-            console.print("1. Website URL (analyzes website content)")
-            console.print("2. Direct business description")
-            choice = click.prompt(
-                "Enter choice (1 or 2)", type=click.Choice(["1", "2"])
-            )
-
-            if choice == "1":
-                url = click.prompt("Enter website URL")
-            else:
-                business_description = click.prompt(
-                    "Describe your business and what you want to advertise"
-                )
-
-        # Run the async workflow
-        asyncio.run(run_workflow(url, business_description, config))
+    pass
 
 
 @cli.command()
@@ -405,34 +366,6 @@ def delete(checkpoint_name: str):
         console.print(f"[green]✅ Checkpoint '{checkpoint_name}' deleted[/green]")
     else:
         console.print(f"[red]❌ Checkpoint '{checkpoint_name}' not found[/red]")
-
-
-# For backward compatibility, keep the old main function
-def main(
-    url: str | None = None,
-    business_description: str | None = None,
-    config: str = "config.yaml",
-) -> None:
-    """Generate AI-powered video advertisements."""
-    console.print("[bold blue]🎥 AdGen - AI Video Ad Generator[/bold blue]")
-    console.print()
-
-    # If neither provided, prompt for one
-    if not url and not business_description:
-        console.print("Choose input method:")
-        console.print("1. Website URL (analyzes website content)")
-        console.print("2. Direct business description")
-        choice = click.prompt("Enter choice (1 or 2)", type=click.Choice(["1", "2"]))
-
-        if choice == "1":
-            url = click.prompt("Enter website URL")
-        else:
-            business_description = click.prompt(
-                "Describe your business and what you want to advertise"
-            )
-
-    # Run the async workflow
-    asyncio.run(run_workflow(url, business_description, config))
 
 
 if __name__ == "__main__":

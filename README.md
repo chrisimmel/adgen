@@ -14,7 +14,9 @@ This is only a small proof of concept, but could easily be the beginning of a fu
 - **Human Review Points**: Strategic approval points in the workflow
 - **Markdown Output**: Generated concepts and plans saved as markdown files
 - **Flexible Input**: Accepts either website URLs or direct business descriptions
-- **CLI Interface**: Easy-to-use command line interface
+- **CLI Interface**: Clean command line interface with subcommands
+- **Workflow Checkpointing**: Automatic checkpoint saving and resumption for cost-effective development
+- **Voice-over Generation**: OpenAI TTS integration for narrated video advertisements
 
 ## Examples
 
@@ -23,7 +25,7 @@ This is only a small proof of concept, but could easily be the beginning of a fu
 This input:
 
 ```bash
-uv run adgen -u https://www.quiksilver.fr/
+uv run adgen generate -u https://www.quiksilver.fr/
 ```
 
 Yields this ad:
@@ -50,19 +52,19 @@ https://github.com/user-attachments/assets/6031deb6-2b99-435a-a60d-bb553ccba67b
    **From a website URL:**
 
    ```bash
-   uv run adgen -u https://your-business-website.com
+   uv run adgen generate -u https://your-business-website.com
    ```
 
    **From a business description:**
 
    ```bash
-   uv run adgen -b "We sell eco-friendly water bottles for athletes"
+   uv run adgen generate -b "We sell eco-friendly water bottles for athletes"
    ```
 
    **Interactive mode:**
 
    ```bash
-   uv run adgen
+   uv run adgen generate
    # Follow prompts to choose URL or description input
    ```
 
@@ -93,6 +95,81 @@ Both paths then follow the same workflow:
 - **Script & Visual Planning**: Generates narration and visual elements
 - **Video Generation**: Creates AI-generated video using RunwayML or Veo 3 (configurable)
 - **Output**: Saves all components as organized markdown files and generated media
+
+## Workflow Checkpointing
+
+AdGen automatically saves checkpoints during workflow execution, allowing you to resume from where you left off if the process is interrupted (e.g., due to API limits, network issues, or system crashes).
+
+### Automatic Checkpointing
+
+Checkpoints are automatically saved after each major workflow step:
+
+- After concept generation
+- After script generation
+- After visual plan generation
+- After video generation
+- After audio generation
+- After video composition
+
+### Checkpoint Management
+
+**List available checkpoints:**
+
+```bash
+uv run adgen checkpoints
+```
+
+**Resume from a checkpoint:**
+
+```bash
+uv run adgen resume <checkpoint_name>
+```
+
+**Delete a checkpoint:**
+
+```bash
+uv run adgen delete <checkpoint_name>
+```
+
+### Example Checkpoint Workflow
+
+```bash
+# Start a new ad generation
+uv run adgen generate -u https://example.com
+
+# If interrupted (e.g., ran out of Runway credits), list checkpoints
+uv run adgen checkpoints
+
+# Resume from where you left off
+uv run adgen resume ad_20231201_143022_concept_generated_20231201_143025
+```
+
+Checkpoints are stored in `outputs/checkpoints/` as JSON files containing the complete workflow state.
+
+## CLI Commands
+
+### Generate Commands
+
+```bash
+uv run adgen generate -u <url>           # Generate from website URL
+uv run adgen generate -b "<description>" # Generate from business description
+uv run adgen generate                    # Interactive mode
+```
+
+### Checkpoint Management Commands
+
+```bash
+uv run adgen checkpoints                 # List all available checkpoints
+uv run adgen resume <checkpoint_name>    # Resume from a specific checkpoint
+uv run adgen delete <checkpoint_name>    # Delete a checkpoint
+```
+
+### Configuration
+
+```bash
+# Use custom config file
+uv run adgen generate -c custom-config.yaml -u <url>
+```
 
 ## Configuration
 
@@ -126,13 +203,17 @@ Currently implemented:
 - ✅ RunwayML video generation integration
 - ✅ Veo 3 video generation integration
 - ✅ Video composition with MoviePy
+- ✅ OpenAI TTS audio generation integration
+- ✅ Voice-over narration with video composition
+- ✅ Workflow checkpointing and resumption system
+- ✅ CLI interface with subcommands
 - ✅ Structured LLM output
 - ✅ CLI interface with human review points
 - ✅ Markdown output generation
 
 Coming next:
 
-- 🔲 Audio generation (ElevenLabs, OpenAI TTS)
 - 🔲 Music generation (Suno, Udio)
+- 🔲 ElevenLabs audio generation integration
 - 🔲 Automated quality control (the agents will inspect the concept, script, video, etc. to look for things to improve)
 - 🔲 FastAPI service interface
