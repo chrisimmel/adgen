@@ -232,14 +232,134 @@ def list_checkpoints() -> None:
         console.print(f"  Project ID: {checkpoint['project_id']}")
         console.print(f"  Status: {checkpoint['status']}")
         console.print(f"  Timestamp: {checkpoint['timestamp']}")
+
+        # Load checkpoint to show detailed information
+        try:
+            state = checkpoint_manager.load_checkpoint(checkpoint["name"])
+            if state and state.get("project"):
+                project = state["project"]
+
+                # Show input source
+                if project.source_url:
+                    console.print(f"  Input: [blue]-u {project.source_url}[/blue]")
+                elif project.business_description:
+                    desc_preview = project.business_description[:60]
+                    if len(project.business_description) > 60:
+                        desc_preview += "..."
+                    console.print(f'  Input: [blue]-b "{desc_preview}"[/blue]')
+
+                # Extract brand/business name and concept preview
+                if project.concept:
+                    concept = project.concept
+
+                    # Try to extract brand name from key message or target audience
+                    brand_name = "Unknown"
+                    if concept.key_message:
+                        # Look for brand names in key message (capitalized words)
+                        words = concept.key_message.split()
+                        for word in words[:5]:  # Check first few words
+                            if word[0].isupper() and len(word) > 2 and word.isalpha():
+                                brand_name = word
+                                break
+
+                    console.print(f"  Brand: [green]{brand_name}[/green]")
+
+                    if concept.target_audience:
+                        audience_preview = concept.target_audience[:50]
+                        if len(concept.target_audience) > 50:
+                            audience_preview += "..."
+                        console.print(f"  Audience: {audience_preview}")
+
+                # Show video provider used
+                if state.get("config"):
+                    video_provider = state["config"].providers.get("video", "unknown")
+                    console.print(
+                        f"  Video Provider: [yellow]{video_provider}[/yellow]"
+                    )
+
+                # Show detailed asset information
+                if project.assets:
+                    assets = project.assets
+                    console.print("  Assets:")
+
+                    # Scene clips details
+                    if assets.scene_clips:
+                        valid_clips = 0
+                        total_size = 0
+                        for clip_path in assets.scene_clips:
+                            if clip_path.exists() and clip_path.stat().st_size > 0:
+                                valid_clips += 1
+                                total_size += clip_path.stat().st_size
+
+                        size_mb = total_size / (1024 * 1024)
+                        if valid_clips > 0:
+                            console.print(
+                                f"    • Scene clips: [green]{valid_clips}/{len(assets.scene_clips)} valid[/green] ({size_mb:.1f}MB) [blue]← Can compose[/blue]"
+                            )
+                        else:
+                            console.print(
+                                f"    • Scene clips: [red]{valid_clips}/{len(assets.scene_clips)} valid[/red] ({size_mb:.1f}MB)"
+                            )
+
+                        # Show if they're fallback files
+                        if assets.scene_clips and "fallback" in str(
+                            assets.scene_clips[0]
+                        ):
+                            console.print(
+                                "    • [red]⚠️  Contains fallback/mock videos[/red]"
+                            )
+
+                    # Final video details
+                    if assets.final_video_path:
+                        if assets.final_video_path.exists():
+                            size_mb = assets.final_video_path.stat().st_size / (
+                                1024 * 1024
+                            )
+                            if assets.scene_clips:
+                                console.print(
+                                    f"    • Final video: [green]✓[/green] ({size_mb:.1f}MB) [dim]← Pre-composed[/dim]"
+                                )
+                            else:
+                                console.print(
+                                    f"    • Final video: [green]✓[/green] ({size_mb:.1f}MB) [blue]← Ready for audio overlay[/blue]"
+                                )
+                        else:
+                            console.print("    • Final video: [red]✗ Missing[/red]")
+
+                    # Audio details
+                    if assets.audio_path:
+                        if assets.audio_path.exists():
+                            size_kb = assets.audio_path.stat().st_size / 1024
+                            console.print(
+                                f"    • Audio: [green]✓[/green] ({size_kb:.0f}KB)"
+                            )
+                        else:
+                            console.print("    • Audio: [red]✗ Missing[/red]")
+
+                # Show failure reasons for failed statuses
+                if "failed" in checkpoint["status"]:
+                    console.print(
+                        f"  [red]Failure: {checkpoint['status'].replace('_', ' ').title()}[/red]"
+                    )
+
+        except Exception as e:
+            console.print(f"  [dim]Error loading checkpoint details: {e}[/dim]")
+
         console.print()
 
 
-async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
-    """Resume workflow from a checkpoint."""
-    console.print(
-        f"[blue]🔄 Resuming workflow from checkpoint: {checkpoint_name}[/blue]"
-    )
+async def resume_workflow(
+    checkpoint_name: str, config_path: str, restart_from: str | None = None
+) -> None:
+    """Resume workflow from a checkpoint, optionally restarting from a specific step."""
+    if restart_from:
+        console.print(
+            f"[blue]🔄 Restarting workflow from step '{restart_from}' using checkpoint: {checkpoint_name}[/blue]"
+        )
+    else:
+        console.print(
+            f"[blue]🔄 Resuming workflow from checkpoint: {checkpoint_name}[/blue]"
+        )
 
     resumption = WorkflowResumption(checkpoint_manager)
     resume_result = resumption.resume_workflow(checkpoint_name)
@@ -267,8 +387,181 @@ async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
     console.print(f"[dim]Current status: {state['project'].status}[/dim]")
     console.print(f"[dim]Next step: {next_step}[/dim]")
 
+    # Override next step if restarting from specific step
+    if restart_from:
+        step_mapping = {
+            "concept": "concept_workflow",
+            "script": "media_workflow",
+            "visual_plan": "media_workflow",
+            "video": "generate_video",
+            "audio": "generate_audio",
+            "compose": "compose_video",
+        }
+        next_step = step_mapping.get(restart_from, next_step)
+        console.print(
+            f"[yellow]🔄 Overriding to restart from: {restart_from} (step: {next_step})[/yellow]"
+        )
+
+        # Reset project status to trigger regeneration
+        if restart_from == "audio":
+            state["project"].status = "video_composed"
+            # Remove existing audio to force regeneration
+            if state["project"].assets and state["project"].assets.audio_path:
+                console.print("[dim]Removing existing audio for regeneration[/dim]")
+                state["project"].assets.audio_path = None
+        elif restart_from == "compose":
+            state["project"].status = "audio_generated"
+        elif restart_from == "video":
+            state["project"].status = "visual_plan_generated"
+            # Remove existing video assets
+            if state["project"].assets:
+                state["project"].assets.video_path = None
+                state["project"].assets.scene_clips = None
+                state["project"].assets.final_video_path = None
+
     try:
-        if next_step == "media_workflow":
+        if next_step == "concept_workflow":
+            # Restart from concept generation
+            console.print("[yellow]Regenerating concept...[/yellow]")
+            concept_workflow = create_concept_workflow(config)
+            result = await concept_workflow.ainvoke(state)
+
+            # Review concept
+            if config.review.get("concept_approval", True):
+                approved = review_concept(result["project"])
+                if not approved:
+                    console.print("[red]Concept not approved. Exiting.[/red]")
+                    return
+            else:
+                approved = True
+
+            if approved:
+                result["approve_concept"] = True
+                console.print("[yellow]Continuing with media generation...[/yellow]")
+                media_workflow = create_media_workflow(config)
+                result = await media_workflow.ainvoke(result)
+                review_script_and_plan(result["project"])
+                console.print("[green]✅ Restarted workflow complete![/green]")
+
+        elif next_step == "generate_video":
+            console.print("[yellow]Regenerating video...[/yellow]")
+            from adgen.workflows.ad_generation import generate_video_node
+
+            state["approve_concept"] = True
+            result = await generate_video_node(state)
+
+            console.print("[yellow]Continuing with audio generation...[/yellow]")
+            from adgen.workflows.ad_generation import generate_audio_node
+
+            result = await generate_audio_node(result)
+
+            # Check if we need video composition or audio overlay on existing video
+            if (
+                result["project"].assets
+                and result["project"].assets.final_video_path
+                and not result["project"].assets.scene_clips
+            ):
+                console.print(
+                    "[yellow]Applying audio overlay to existing final video...[/yellow]"
+                )
+                # Apply audio directly to existing final video using smart audio logic
+                from pathlib import Path
+                import time
+
+                from moviepy import CompositeAudioClip
+                from moviepy.audio.io.AudioFileClip import AudioFileClip
+                from moviepy.video.io.VideoFileClip import VideoFileClip
+
+                try:
+                    final_video_path = result["project"].assets.final_video_path
+                    audio_path = result["project"].assets.audio_path
+
+                    if final_video_path.exists() and audio_path.exists():
+                        # Load video and audio
+                        video_clip = VideoFileClip(str(final_video_path))
+                        audio_clip = AudioFileClip(str(audio_path))
+
+                        # Trim audio to match video duration
+                        if audio_clip.duration > video_clip.duration:
+                            console.print(
+                                f"Trimming audio from {audio_clip.duration:.1f}s to {video_clip.duration:.1f}s"
+                            )
+                            audio_clip = audio_clip.subclipped(0, video_clip.duration)
+
+                        # Smart audio handling: Check if video provider generates audio
+                        video_provider = result["config"].providers.get(
+                            "video", "runwayml"
+                        )
+                        video_config = result["config"].video.get(video_provider, {})
+                        generates_audio = video_config.get("generate_audio", False)
+
+                        if generates_audio and video_clip.audio is not None:
+                            # Video has original audio (e.g., Veo 3) - create overlay
+                            console.print(
+                                "Creating audio overlay (original + voice-over)"
+                            )
+                            original_audio = video_clip.audio
+                            original_reduced = original_audio.with_volume_scaled(0.3)
+                            composite_audio = CompositeAudioClip(
+                                [original_reduced, audio_clip]
+                            )
+                            final_clip = video_clip.with_audio(composite_audio)
+                        else:
+                            # No original audio worth preserving (e.g., Runway) - replace
+                            console.print("Replacing audio with voice-over")
+                            final_clip = video_clip.with_audio(audio_clip)
+
+                        # Create new output path
+                        timestamp = int(time.time())
+                        project_id = result["project"].project_id
+                        new_video_path = Path(
+                            f"outputs/media/{project_id}_final_with_new_audio_{timestamp}.mp4"
+                        )
+
+                        # Write new video
+                        console.print(
+                            f"Writing video with new audio to: {new_video_path}"
+                        )
+                        final_clip.write_videofile(
+                            str(new_video_path),
+                            codec="libx264",
+                            audio_codec="aac",
+                            temp_audiofile="temp-audio.m4a",
+                            remove_temp=True,
+                            logger=None,
+                        )
+
+                        # Update assets with new video path
+                        result["project"].assets.final_video_path = new_video_path
+                        result["project"].status = "video_composed"
+
+                        # Cleanup
+                        video_clip.close()
+                        audio_clip.close()
+                        final_clip.close()
+
+                        console.print(
+                            "[green]✅ Audio successfully applied to existing video[/green]"
+                        )
+                        console.print(f"[blue]New video: {new_video_path}[/blue]")
+
+                except Exception as e:
+                    console.print(
+                        f"[red]Failed to apply audio to existing video: {e}[/red]"
+                    )
+                    import traceback
+
+                    traceback.print_exc()
+            else:
+                console.print("[yellow]Continuing with video composition...[/yellow]")
+                from adgen.workflows.ad_generation import compose_video_node
+
+                result = await compose_video_node(result)
+
+            review_script_and_plan(result["project"])
+            console.print("[green]✅ Restarted workflow complete![/green]")
+
+        elif next_step == "media_workflow":
             # Need concept approval first
             if not review_concept(state["project"]):
                 console.print("[red]Concept not approved. Workflow stopped.[/red]")
@@ -295,12 +588,110 @@ async def resume_workflow(checkpoint_name: str, config_path: str) -> None:
             state["approve_concept"] = True  # Must be approved to reach this point
             result = await generate_audio_node(state)
 
-            console.print("[yellow]Continuing with video composition...[/yellow]")
+            # Check if we need video composition or audio overlay on existing video
+            if (
+                result["project"].assets
+                and result["project"].assets.final_video_path
+                and not result["project"].assets.scene_clips
+            ):
+                console.print(
+                    "[yellow]Applying audio overlay to existing final video...[/yellow]"
+                )
+                # Apply audio directly to existing final video using smart audio logic
+                from pathlib import Path
+                import time
 
-            # Import and run composition node
-            from adgen.workflows.ad_generation import compose_video_node
+                from moviepy import CompositeAudioClip
+                from moviepy.audio.io.AudioFileClip import AudioFileClip
+                from moviepy.video.io.VideoFileClip import VideoFileClip
 
-            result = await compose_video_node(result)
+                try:
+                    final_video_path = result["project"].assets.final_video_path
+                    audio_path = result["project"].assets.audio_path
+
+                    if final_video_path.exists() and audio_path.exists():
+                        # Load video and audio
+                        video_clip = VideoFileClip(str(final_video_path))
+                        audio_clip = AudioFileClip(str(audio_path))
+
+                        # Trim audio to match video duration
+                        if audio_clip.duration > video_clip.duration:
+                            console.print(
+                                f"Trimming audio from {audio_clip.duration:.1f}s to {video_clip.duration:.1f}s"
+                            )
+                            audio_clip = audio_clip.subclipped(0, video_clip.duration)
+
+                        # Smart audio handling: Check if video provider generates audio
+                        video_provider = result["config"].providers.get(
+                            "video", "runwayml"
+                        )
+                        video_config = result["config"].video.get(video_provider, {})
+                        generates_audio = video_config.get("generate_audio", False)
+
+                        if generates_audio and video_clip.audio is not None:
+                            # Video has original audio (e.g., Veo 3) - create overlay
+                            console.print(
+                                "Creating audio overlay (original + voice-over)"
+                            )
+                            original_audio = video_clip.audio
+                            original_reduced = original_audio.with_volume_scaled(0.3)
+                            composite_audio = CompositeAudioClip(
+                                [original_reduced, audio_clip]
+                            )
+                            final_clip = video_clip.with_audio(composite_audio)
+                        else:
+                            # No original audio worth preserving (e.g., Runway) - replace
+                            console.print("Replacing audio with voice-over")
+                            final_clip = video_clip.with_audio(audio_clip)
+
+                        # Create new output path
+                        timestamp = int(time.time())
+                        project_id = result["project"].project_id
+                        new_video_path = Path(
+                            f"outputs/media/{project_id}_final_with_new_audio_{timestamp}.mp4"
+                        )
+
+                        # Write new video
+                        console.print(
+                            f"Writing video with new audio to: {new_video_path}"
+                        )
+                        final_clip.write_videofile(
+                            str(new_video_path),
+                            codec="libx264",
+                            audio_codec="aac",
+                            temp_audiofile="temp-audio.m4a",
+                            remove_temp=True,
+                            logger=None,
+                        )
+
+                        # Update assets with new video path
+                        result["project"].assets.final_video_path = new_video_path
+                        result["project"].status = "video_composed"
+
+                        # Cleanup
+                        video_clip.close()
+                        audio_clip.close()
+                        final_clip.close()
+
+                        console.print(
+                            "[green]✅ Audio successfully applied to existing video[/green]"
+                        )
+                        console.print(f"[blue]New video: {new_video_path}[/blue]")
+
+                except Exception as e:
+                    console.print(
+                        f"[red]Failed to apply audio to existing video: {e}[/red]"
+                    )
+                    import traceback
+
+                    traceback.print_exc()
+            else:
+                console.print("[yellow]Continuing with video composition...[/yellow]")
+
+                # Import and run composition node
+                from adgen.workflows.ad_generation import compose_video_node
+
+                result = await compose_video_node(result)
 
             # Display results
             review_script_and_plan(result["project"])
@@ -408,9 +799,17 @@ def checkpoints():
 @click.option(
     "--config", "-c", help="Path to configuration file", default="config.yaml"
 )
-def resume(checkpoint_name: str, config: str):
-    """Resume workflow from a checkpoint."""
-    asyncio.run(resume_workflow(checkpoint_name, config))
+@click.option(
+    "--restart-from",
+    help="Restart from a specific step instead of resuming from next step",
+    type=click.Choice(
+        ["concept", "script", "visual_plan", "video", "audio", "compose"]
+    ),
+    default=None,
+)
+def resume(checkpoint_name: str, config: str, restart_from: str | None):
+    """Resume workflow from a checkpoint, optionally restarting from a specific step."""
+    asyncio.run(resume_workflow(checkpoint_name, config, restart_from))
 
 
 @cli.command()

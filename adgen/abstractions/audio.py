@@ -56,9 +56,9 @@ class OpenAITTSProvider(AudioProvider):
                 print(f"Generating audio with OpenAI TTS: voice={voice}, speed={speed}")
                 print(f"Text: '{text[:100]}...'")
 
-                # Generate audio
+                # Generate audio with higher quality model
                 response = await client.audio.speech.create(
-                    model="tts-1",
+                    model="tts-1-hd",  # Higher quality for better engagement
                     voice=voice,
                     input=text,
                     speed=speed,

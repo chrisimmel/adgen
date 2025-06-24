@@ -27,6 +27,123 @@ checkpoint_manager = CheckpointManager()
 checkpoint_after = create_checkpoint_decorator(checkpoint_manager)
 
 
+def estimate_speech_duration(text: str, base_speed: float = 1.0) -> float:
+    """Estimate speech duration in seconds based on text length and speaking speed."""
+    # Average speaking rate: ~150 words per minute (2.5 words per second)
+    # Adjusted for TTS which tends to be slightly faster
+    words_per_second = 2.8 * base_speed
+    word_count = len(text.split())
+    return word_count / words_per_second
+
+
+def adjust_speed_for_duration(
+    text: str, target_duration: float, base_speed: float = 1.0
+) -> float:
+    """Adjust speech speed to fit target duration."""
+    estimated_duration = estimate_speech_duration(text, base_speed)
+
+    if estimated_duration <= target_duration:
+        # Audio is short enough, no adjustment needed
+        return base_speed
+
+    # Calculate required speed increase to fit duration
+    required_speed = base_speed * (estimated_duration / target_duration)
+
+    # Limit speed to reasonable range (max 2.0 for natural speech)
+    max_speed = 2.0
+    if required_speed > max_speed:
+        print(
+            f"⚠️  Script too long for target duration ({estimated_duration:.1f}s > {target_duration:.1f}s)"
+        )
+        print(
+            f"   Even at max speed ({max_speed}x), audio will be {estimated_duration/max_speed:.1f}s"
+        )
+        return max_speed
+
+    return required_speed
+
+
+def select_voice_for_concept(
+    concept: AdConcept, default_voice: str = "alloy", default_speed: float = 1.0
+) -> tuple[str, float]:
+    """Select optimal voice and speed based on ad concept and target audience."""
+    if not concept:
+        return default_voice, default_speed
+
+    # Analyze target audience for age/gender cues
+    audience = concept.target_audience.lower() if concept.target_audience else ""
+    tone = concept.tone.lower() if concept.tone else ""
+    emotional_appeal = (
+        concept.emotional_appeal.lower() if concept.emotional_appeal else ""
+    )
+
+    # Voice selection logic
+    voice = default_voice
+    speed = default_speed
+
+    # Age-based selection
+    if any(word in audience for word in ["young", "teen", "gen z", "millennial"]):
+        if any(word in tone for word in ["energetic", "fun", "playful", "vibrant"]):
+            voice = "nova"  # Young, energetic female
+            speed = 1.1  # Slightly faster for energy
+        elif any(word in audience for word in ["male", "men", "guys"]):
+            voice = "echo"  # Male, slightly deeper
+            speed = 1.05
+        else:
+            voice = "nova"  # Default to young, energetic
+            speed = 1.1
+
+    # Professional/authoritative content
+    elif any(
+        word in tone
+        for word in ["professional", "authoritative", "confident", "premium", "luxury"]
+    ):
+        if any(word in audience for word in ["executive", "professional", "business"]):
+            voice = "onyx"  # Deep, authoritative male
+            speed = 0.95  # Slower for authority
+        else:
+            voice = "alloy"  # Neutral, balanced
+            speed = 1.0
+
+    # Storytelling/narrative content
+    elif any(
+        word in tone
+        for word in ["storytelling", "narrative", "heritage", "legacy", "authentic"]
+    ):
+        voice = "fable"  # British accent, storytelling
+        speed = 0.9  # Slower for storytelling
+
+    # Gentle/soft content
+    elif any(
+        word in tone for word in ["gentle", "soft", "caring", "nurturing", "wellness"]
+    ):
+        voice = "shimmer"  # Soft, gentle female
+        speed = 0.95
+
+    # High-energy/action content
+    elif any(
+        word in tone
+        for word in ["energetic", "exciting", "dynamic", "action", "adventure"]
+    ):
+        voice = "nova"  # Young, energetic female
+        speed = 1.15  # Faster for excitement
+
+    # Emotional appeal adjustments
+    if "adventure" in emotional_appeal:
+        voice = "echo" if voice == default_voice else voice
+        speed = max(speed, 1.05)
+    elif "luxury" in emotional_appeal:
+        voice = "onyx" if voice == default_voice else voice
+        speed = min(speed, 0.95)
+    elif "excitement" in emotional_appeal:
+        speed = max(speed, 1.1)
+
+    # Ensure speed is within valid range
+    speed = max(0.25, min(4.0, speed))
+
+    return voice, speed
+
+
 def create_llm(config: Config) -> BaseChatModel:
     """Create LLM instance based on configuration."""
     provider = config.providers["llm"]
@@ -473,12 +590,38 @@ async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
             f"{script.hook} {script.main_content} {script.call_to_action}".strip()
         )
 
-        # Get audio config
+        # Get audio config with smart voice selection
         audio_config = config.audio.get(provider_type, {})
-        voice = audio_config.get("voice", "alloy")
-        speed = audio_config.get("speed", 1.0)
+        default_voice = audio_config.get("voice", "alloy")
+        default_speed = audio_config.get("speed", 1.0)
 
-        print(f"Generating voice-over: voice={voice}, speed={speed}")
+        # Smart voice and speed selection based on ad concept
+        voice, speed = select_voice_for_concept(
+            state["project"].concept, default_voice, default_speed
+        )
+
+        # Adjust speed for target video duration
+        target_duration = config.ad_duration_seconds
+        estimated_duration = estimate_speech_duration(full_script, speed)
+
+        print(f"Target video duration: {target_duration}s")
+        print(f"Estimated audio duration: {estimated_duration:.1f}s at {speed}x speed")
+
+        if estimated_duration > target_duration:
+            # Need to speed up to fit
+            adjusted_speed = adjust_speed_for_duration(
+                full_script, target_duration, speed
+            )
+            print(
+                f"🎯 Adjusting speed from {speed:.2f}x to {adjusted_speed:.2f}x to fit {target_duration}s"
+            )
+            speed = adjusted_speed
+
+            # Recalculate final duration
+            final_estimated = estimate_speech_duration(full_script, speed)
+            print(f"📏 Final estimated audio duration: {final_estimated:.1f}s")
+
+        print(f"Generating voice-over: voice={voice}, speed={speed:.2f}")
         print(f"Script: '{full_script[:100]}...'")
 
         # Generate audio
