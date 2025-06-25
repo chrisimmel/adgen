@@ -32,7 +32,6 @@ class ElevenLabsProvider(AudioProvider):
             import asyncio
 
             from elevenlabs import ElevenLabs
-            from elevenlabs.types import VoiceSettings
 
             # Initialize ElevenLabs client
             client = ElevenLabs(api_key=self.api_key)
@@ -91,19 +90,19 @@ class ElevenLabsProvider(AudioProvider):
                 # Configure voice settings
                 # ElevenLabs uses stability and similarity_boost instead of speed
                 # Convert speed to stability (inverse relationship for naturalness)
-                stability = max(0.0, min(1.0, 1.0 - (speed - 1.0) * 0.3))
-                similarity_boost = kwargs.get("similarity_boost", 0.75)
+                # stability = max(0.0, min(1.0, 1.0 - (speed - 1.0) * 0.3))
+                # similarity_boost = kwargs.get("similarity_boost", 0.75)
 
-                voice_settings = VoiceSettings(
-                    stability=stability,
-                    similarity_boost=similarity_boost,
-                    style=kwargs.get("style", 0.0),
-                    use_speaker_boost=kwargs.get("use_speaker_boost", True),
-                )
+                # voice_settings = VoiceSettings(
+                #     stability=stability,
+                #     similarity_boost=similarity_boost,
+                #     style=kwargs.get("style", 0.0),
+                #     use_speaker_boost=kwargs.get("use_speaker_boost", True),
+                # )
 
-                print(
-                    f"Voice settings: stability={stability:.2f}, similarity_boost={similarity_boost}"
-                )
+                # print(
+                #     f"Voice settings: stability={stability:.2f}, similarity_boost={similarity_boost}"
+                # )
 
                 # Generate audio (this is a blocking call, so we'll run it in executor)
                 loop = asyncio.get_event_loop()
@@ -111,13 +110,14 @@ class ElevenLabsProvider(AudioProvider):
                 # Create a function with bound parameters to avoid lambda closure issues
                 def generate_audio(
                     voice_id=final_voice_id,
-                    settings=voice_settings,
+                    # settings=voice_settings,
                     model_id=kwargs.get("model_id", "eleven_multilingual_v2"),
                 ):
                     return client.text_to_speech.convert(
                         voice_id=voice_id,
                         text=text,
-                        voice_settings=settings,
+                        # Omit voice settings to get most natural voice.
+                        # voice_settings=settings,
                         model_id=model_id,
                     )
 

@@ -1,3 +1,4 @@
+import random
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
@@ -181,15 +182,21 @@ def _select_elevenlabs_voice(
         if any(word in tone for word in ["energetic", "fun", "playful", "vibrant"]):
             if any(word in audience for word in ["male", "men", "guys"]):
                 voice = "drew"  # Young, energetic male
-            else:
+            elif any(word in audience for word in ["female", "women", "girls"]):
                 voice = "gigi"  # Young, energetic female
+            else:
+                # Randomly pick a young female or male.
+                voice = "gigi" if random.random() < 0.5 else "drew"
             speed = 1.1
         elif any(word in audience for word in ["male", "men", "guys"]):
             voice = "ryan"  # Casual, friendly male
             speed = 1.05
-        else:
+        elif any(word in audience for word in ["female", "women", "girls"]):
             voice = "freya"  # Young, confident female
-            speed = 1.1
+            speed = 1.05
+        else:
+            # Randomly pick a young female or male.
+            voice = "freya" if random.random() < 0.5 else "ryan"
 
     # Professional/authoritative content
     elif any(
