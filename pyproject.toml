@@ -26,6 +26,7 @@ dependencies = [
     "runwayml>=0.12.0",
     "aiohttp>=3.10.0",
     "fal-client>=0.4.0",
+    "elevenlabs>=2.5.0",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,7 @@ dev = [
 ]
 
 [project.scripts]
-adgen = "adgen.cli:main"
+adgen = "adgen.cli:cli"
 
 [build-system]
 requires = ["hatchling"]

@@ -14,6 +14,14 @@ class AdConcept(BaseModel):
     style: str = Field(description="Visual style (e.g., modern, minimalist, energetic)")
     call_to_action: str = Field(description="What action should viewers take")
     emotional_appeal: str = Field(description="Primary emotion to evoke")
+    needs_voice_over: bool = Field(
+        description="Whether the ad needs a voice-over", default=True
+    )
+    needs_music: bool = Field(description="Whether the ad needs music", default=True)
+    full_concept_description: str | None = Field(
+        description="Full, detailed description of the ad concept, in markdown",
+        default=None,
+    )
 
 
 class AdScript(BaseModel):

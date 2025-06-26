@@ -1,3 +1,4 @@
+import random
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
@@ -5,8 +6,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
+from adgen.abstractions.audio import AudioFactory
 from adgen.abstractions.video import VideoFactory
 from adgen.models.ad import AdAssets, AdConcept, AdProject, AdScript, VisualPlan
+from adgen.utils.checkpoint import CheckpointManager, create_checkpoint_decorator
 from adgen.utils.config import Config, get_api_key
 from adgen.utils.markdown import get_markdown_from_web_page
 
@@ -18,6 +21,258 @@ class AdGenerationState(dict[str, Any]):
     config: Config
     approve_concept: bool = False
     approve_final: bool = False
+    enable_voice_over: bool = False
+
+
+# Global checkpoint manager
+checkpoint_manager = CheckpointManager()
+checkpoint_after = create_checkpoint_decorator(checkpoint_manager)
+
+
+def estimate_speech_duration(text: str, base_speed: float = 1.0) -> float:
+    """Estimate speech duration in seconds based on text length and speaking speed."""
+    # Average speaking rate: ~150 words per minute (2.5 words per second)
+    # Adjusted for TTS which tends to be slightly faster
+    words_per_second = 2.8 * base_speed
+    word_count = len(text.split())
+    return word_count / words_per_second
+
+
+def adjust_speed_for_duration(
+    text: str, target_duration: float, base_speed: float = 1.0
+) -> float:
+    """Adjust speech speed to fit target duration."""
+    estimated_duration = estimate_speech_duration(text, base_speed)
+
+    if estimated_duration <= target_duration:
+        # Audio is short enough, no adjustment needed
+        return base_speed
+
+    # Calculate required speed increase to fit duration
+    required_speed = base_speed * (estimated_duration / target_duration)
+
+    # Limit speed to reasonable range (max 2.0 for natural speech)
+    max_speed = 2.0
+    if required_speed > max_speed:
+        print(
+            f"⚠️  Script too long for target duration ({estimated_duration:.1f}s > {target_duration:.1f}s)"
+        )
+        print(
+            f"   Even at max speed ({max_speed}x), audio will be {estimated_duration/max_speed:.1f}s"
+        )
+        return max_speed
+
+    return required_speed
+
+
+def select_voice_for_concept(
+    concept: AdConcept,
+    default_voice: str = "alloy",
+    default_speed: float = 1.0,
+    provider: str = "openai",
+) -> tuple[str, float]:
+    """Select optimal voice and speed based on ad concept and target audience."""
+    if not concept:
+        return default_voice, default_speed
+
+    # Analyze target audience for age/gender cues
+    audience = concept.target_audience.lower() if concept.target_audience else ""
+    tone = concept.tone.lower() if concept.tone else ""
+    emotional_appeal = (
+        concept.emotional_appeal.lower() if concept.emotional_appeal else ""
+    )
+
+    # Voice selection logic based on provider
+    if provider == "elevenlabs":
+        return _select_elevenlabs_voice(
+            audience, tone, emotional_appeal, default_voice, default_speed
+        )
+    else:
+        return _select_openai_voice(
+            audience, tone, emotional_appeal, default_voice, default_speed
+        )
+
+
+def _select_openai_voice(
+    audience: str,
+    tone: str,
+    emotional_appeal: str,
+    default_voice: str,
+    default_speed: float,
+) -> tuple[str, float]:
+    """Select OpenAI voice based on concept analysis."""
+    voice = default_voice
+    speed = default_speed
+
+    # Age-based selection
+    if any(word in audience for word in ["young", "teen", "gen z", "millennial"]):
+        if any(word in tone for word in ["energetic", "fun", "playful", "vibrant"]):
+            voice = "nova"  # Young, energetic female
+            speed = 1.1  # Slightly faster for energy
+        elif any(word in audience for word in ["male", "men", "guys"]):
+            voice = "echo"  # Male, slightly deeper
+            speed = 1.05
+        else:
+            voice = "nova"  # Default to young, energetic
+            speed = 1.1
+
+    # Professional/authoritative content
+    elif any(
+        word in tone
+        for word in ["professional", "authoritative", "confident", "premium", "luxury"]
+    ):
+        if any(word in audience for word in ["executive", "professional", "business"]):
+            voice = "onyx"  # Deep, authoritative male
+            speed = 0.95  # Slower for authority
+        else:
+            voice = "alloy"  # Neutral, balanced
+            speed = 1.0
+
+    # Storytelling/narrative content
+    elif any(
+        word in tone
+        for word in ["storytelling", "narrative", "heritage", "legacy", "authentic"]
+    ):
+        voice = "fable"  # British accent, storytelling
+        speed = 0.9  # Slower for storytelling
+
+    # Gentle/soft content
+    elif any(
+        word in tone for word in ["gentle", "soft", "caring", "nurturing", "wellness"]
+    ):
+        voice = "shimmer"  # Soft, gentle female
+        speed = 0.95
+
+    # High-energy/action content
+    elif any(
+        word in tone
+        for word in ["energetic", "exciting", "dynamic", "action", "adventure"]
+    ):
+        voice = "nova"  # Young, energetic female
+        speed = 1.15  # Faster for excitement
+
+    # Emotional appeal adjustments
+    if "adventure" in emotional_appeal:
+        voice = "echo" if voice == default_voice else voice
+        speed = max(speed, 1.05)
+    elif "luxury" in emotional_appeal:
+        voice = "onyx" if voice == default_voice else voice
+        speed = min(speed, 0.95)
+    elif "excitement" in emotional_appeal:
+        speed = max(speed, 1.1)
+
+    # Ensure speed is within valid range
+    speed = max(0.25, min(4.0, speed))
+
+    return voice, speed
+
+
+def _select_elevenlabs_voice(
+    audience: str,
+    tone: str,
+    emotional_appeal: str,
+    default_voice: str,
+    default_speed: float,
+) -> tuple[str, float]:
+    """Select ElevenLabs voice based on concept analysis."""
+    voice = default_voice
+    speed = default_speed
+
+    # Age-based selection - ElevenLabs has more diverse and realistic voices
+    if any(word in audience for word in ["young", "teen", "gen z", "millennial"]):
+        if any(word in tone for word in ["energetic", "fun", "playful", "vibrant"]):
+            if any(word in audience for word in ["male", "men", "guys"]):
+                voice = "drew"  # Young, energetic male
+            elif any(word in audience for word in ["female", "women", "girls"]):
+                voice = "gigi"  # Young, energetic female
+            else:
+                # Randomly pick a young female or male.
+                voice = "gigi" if random.random() < 0.5 else "drew"
+            speed = 1.1
+        elif any(word in audience for word in ["male", "men", "guys"]):
+            voice = "ryan"  # Casual, friendly male
+            speed = 1.05
+        elif any(word in audience for word in ["female", "women", "girls"]):
+            voice = "freya"  # Young, confident female
+            speed = 1.05
+        else:
+            # Randomly pick a young female or male.
+            voice = "freya" if random.random() < 0.5 else "ryan"
+
+    # Professional/authoritative content
+    elif any(
+        word in tone
+        for word in ["professional", "authoritative", "confident", "premium", "luxury"]
+    ):
+        if any(word in audience for word in ["executive", "professional", "business"]):
+            voice = "thomas"  # Deep, professional male
+            speed = 0.95
+        elif any(word in audience for word in ["female", "women", "ladies"]):
+            voice = "charlotte"  # Professional, confident female
+            speed = 0.95
+        else:
+            voice = "paul"  # Authoritative, mature male
+            speed = 1.0
+
+    # Storytelling/narrative content
+    elif any(
+        word in tone
+        for word in ["storytelling", "narrative", "heritage", "legacy", "authentic"]
+    ):
+        if any(word in audience for word in ["female", "women"]):
+            voice = "matilda"  # Warm, storytelling female
+        else:
+            voice = "antoni"  # Rich, narrative male
+        speed = 0.9
+
+    # Gentle/soft content
+    elif any(
+        word in tone for word in ["gentle", "soft", "caring", "nurturing", "wellness"]
+    ):
+        voice = "grace"  # Soft, caring female
+        speed = 0.95
+
+    # High-energy/action content
+    elif any(
+        word in tone
+        for word in ["energetic", "exciting", "dynamic", "action", "adventure"]
+    ):
+        if any(word in audience for word in ["male", "men"]):
+            voice = "ethan"  # Energetic, adventurous male
+        else:
+            voice = "jessie"  # Dynamic, exciting female
+        speed = 1.15
+
+    # Luxury/premium content
+    elif any(
+        word in tone for word in ["luxury", "premium", "exclusive", "sophisticated"]
+    ):
+        if any(word in audience for word in ["male", "men"]):
+            voice = "james"  # Sophisticated male
+        else:
+            voice = "serena"  # Elegant, premium female
+        speed = 0.9
+
+    # Emotional appeal adjustments
+    if "adventure" in emotional_appeal:
+        if voice == default_voice:
+            voice = "ryan"  # Adventurous male
+        speed = max(speed, 1.05)
+    elif "luxury" in emotional_appeal:
+        if voice == default_voice:
+            voice = "charlotte"  # Luxury female
+        speed = min(speed, 0.95)
+    elif "excitement" in emotional_appeal:
+        speed = max(speed, 1.1)
+    elif "trust" in emotional_appeal or "reliability" in emotional_appeal:
+        if voice == default_voice:
+            voice = "daniel"  # Trustworthy male
+        speed = max(0.9, speed)
+
+    # Ensure speed is within valid range (ElevenLabs works well in this range)
+    speed = max(0.7, min(1.3, speed))
+
+    return voice, speed
 
 
 def create_llm(config: Config) -> BaseChatModel:
@@ -142,6 +397,7 @@ def should_generate_business_description(state: AdGenerationState) -> str:
         return "generate_concept"
 
 
+@checkpoint_after
 async def generate_concept_node(state: AdGenerationState) -> AdGenerationState:
     """Generate the ad concept from business description."""
     llm = create_llm(state["config"]).with_structured_output(AdConcept)
@@ -187,6 +443,7 @@ async def review_concept_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def generate_script_node(state: AdGenerationState) -> AdGenerationState:
     """Generate the ad script based on the approved concept."""
     if not state["approve_concept"]:
@@ -226,6 +483,7 @@ async def generate_script_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
 async def generate_visual_plan_node(state: AdGenerationState) -> AdGenerationState:
     """Generate visual plan for the advertisement."""
     if not state["approve_concept"]:
@@ -283,6 +541,7 @@ def _create_comprehensive_prompt(concept, script, visual_plan, duration_seconds)
     return comprehensive_prompt
 
 
+@checkpoint_after
 async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     """Generate multiple scene-based video clips using the visual plan and script."""
     if not state["approve_concept"]:
@@ -430,6 +689,110 @@ async def generate_video_node(state: AdGenerationState) -> AdGenerationState:
     return state
 
 
+@checkpoint_after
+async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
+    """Generate voice-over audio from the script."""
+    if not state["approve_concept"]:
+        return state
+
+    # Check if voice-over is enabled and needed
+    if not state.get("enable_voice_over", False):
+        print("Voice-over disabled via command line - skipping audio generation")
+        state["project"].status = "audio_skipped"
+        return state
+
+    concept = state["project"].concept
+    if concept and not concept.needs_voice_over:
+        print("Concept indicates no voice-over needed - skipping audio generation")
+        state["project"].status = "audio_skipped"
+        return state
+
+    script = state["project"].script
+    if not script:
+        print("No script found for audio generation")
+        return state
+
+    # Ensure environment variables are loaded
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    # Create audio provider
+    config = state["config"]
+    provider_type = config.providers.get("audio", "mock")
+    api_key = get_api_key(provider_type, "audio")
+
+    print(f"Audio provider: {provider_type}")
+    print(f"API key available: {'Yes' if api_key else 'No'}")
+
+    try:
+        audio_provider = AudioFactory.create_provider(provider_type, api_key)
+
+        # Combine script parts into full narration
+        full_script = (
+            f"{script.hook} {script.main_content} {script.call_to_action}".strip()
+        )
+
+        # Get audio config with smart voice selection
+        audio_config = config.audio.get(provider_type, {})
+        default_voice = audio_config.get("voice", "alloy")
+        default_speed = audio_config.get("speed", 1.0)
+
+        # Smart voice and speed selection based on ad concept
+        voice, speed = select_voice_for_concept(
+            state["project"].concept, default_voice, default_speed, provider_type
+        )
+
+        # Adjust speed for target video duration
+        target_duration = config.ad_duration_seconds
+        estimated_duration = estimate_speech_duration(full_script, speed)
+
+        print(f"Target video duration: {target_duration}s")
+        print(f"Estimated audio duration: {estimated_duration:.1f}s at {speed}x speed")
+
+        if estimated_duration > target_duration:
+            # Need to speed up to fit
+            adjusted_speed = adjust_speed_for_duration(
+                full_script, target_duration, speed
+            )
+            print(
+                f"🎯 Adjusting speed from {speed:.2f}x to {adjusted_speed:.2f}x to fit {target_duration}s"
+            )
+            speed = adjusted_speed
+
+            # Recalculate final duration
+            final_estimated = estimate_speech_duration(full_script, speed)
+            print(f"📏 Final estimated audio duration: {final_estimated:.1f}s")
+
+        print(f"Generating voice-over: voice={voice}, speed={speed:.2f}")
+        print(f"Script: '{full_script[:100]}...'")
+
+        # Generate audio
+        audio_path = await audio_provider.generate_speech(
+            text=full_script, voice_id=voice, speed=speed
+        )
+
+        # Update project with generated audio
+        if not state["project"].assets:
+            state["project"].assets = AdAssets()
+
+        state["project"].assets.audio_path = audio_path
+        state["project"].status = "audio_generated"
+
+        print(f"Audio generated successfully: {audio_path}")
+
+    except Exception as e:
+        print(f"Audio generation failed: {e}")
+        import traceback
+
+        print(f"Full traceback: {traceback.format_exc()}")
+        # Continue without audio for now
+        state["project"].status = "audio_generation_failed"
+
+    return state
+
+
+@checkpoint_after
 async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
     """Compose individual scene clips into a final video using MoviePy."""
     if not state["approve_concept"]:
@@ -515,6 +878,73 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
 
         # Concatenate all clips
         final_clip = concatenate_videoclips(clips)
+
+        # Add voice-over audio if available and not skipped with smart audio handling
+        if (
+            state["project"].assets
+            and state["project"].assets.audio_path
+            and state["project"].status != "audio_skipped"
+        ):
+            audio_path = state["project"].assets.audio_path
+            if audio_path.exists():
+                print(f"Adding voice-over audio: {audio_path}")
+                try:
+                    from moviepy import CompositeAudioClip
+                    from moviepy.audio.io.AudioFileClip import AudioFileClip
+
+                    audio_clip = AudioFileClip(str(audio_path))
+
+                    # Trim audio to match video duration if necessary
+                    if audio_clip.duration > final_clip.duration:
+                        print(
+                            f"Trimming audio from {audio_clip.duration:.1f}s to {final_clip.duration:.1f}s"
+                        )
+                        audio_clip = audio_clip.subclipped(0, final_clip.duration)
+                    elif audio_clip.duration < final_clip.duration:
+                        print(
+                            f"Audio ({audio_clip.duration:.1f}s) is shorter than video ({final_clip.duration:.1f}s)"
+                        )
+
+                    # Smart audio handling: Check if video provider generates audio
+                    video_provider = state["config"].providers.get("video", "runwayml")
+                    video_config = state["config"].video.get(video_provider, {})
+                    generates_audio = video_config.get("generate_audio", False)
+
+                    if generates_audio and final_clip.audio is not None:
+                        # Video has original audio (e.g., Veo 3) - create overlay
+                        print(
+                            f"Detected original audio in {video_provider} video - creating audio overlay"
+                        )
+                        original_audio = final_clip.audio
+                        print(
+                            f"Original audio duration: {original_audio.duration:.1f}s"
+                        )
+
+                        # Mix original audio (30%) with voice-over (100%)
+                        original_reduced = original_audio.with_volume_scaled(0.3)
+                        composite_audio = CompositeAudioClip(
+                            [original_reduced, audio_clip]
+                        )
+                        final_clip = final_clip.with_audio(composite_audio)
+                        print(
+                            "Voice-over audio overlaid with original audio (30% + 100%)"
+                        )
+                    else:
+                        # No original audio worth preserving (e.g., Runway) - replace completely
+                        print(
+                            f"No original audio in {video_provider} video - replacing with voice-over"
+                        )
+                        final_clip = final_clip.with_audio(audio_clip)
+                        print("Voice-over audio successfully added as replacement")
+
+                except Exception as e:
+                    print(f"Failed to add audio: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+                    # Continue without audio
+            else:
+                print(f"Audio file not found: {audio_path}")
 
         # Create output path for final video
         project_id = state["project"].project_id
@@ -620,13 +1050,15 @@ def create_media_workflow(_config: Config) -> StateGraph:
     workflow.add_node("generate_script", generate_script_node)
     workflow.add_node("generate_visual_plan", generate_visual_plan_node)
     workflow.add_node("generate_video", generate_video_node)
+    workflow.add_node("generate_audio", generate_audio_node)
     workflow.add_node("compose_video", compose_video_node)
 
     # Set entry point and flow
     workflow.set_entry_point("generate_script")
     workflow.add_edge("generate_script", "generate_visual_plan")
     workflow.add_edge("generate_visual_plan", "generate_video")
-    workflow.add_edge("generate_video", "compose_video")
+    workflow.add_edge("generate_video", "generate_audio")
+    workflow.add_edge("generate_audio", "compose_video")
     workflow.add_edge("compose_video", END)
 
     return workflow.compile()
