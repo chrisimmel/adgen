@@ -1,8 +1,8 @@
 # AdGen - AI Video Ad Generator
 
-An agentic system that uses LLMs and generative AI models to create short video advertisements with narration and music.
+A small agentic system that uses LLMs and generative AI models to create short video advertisements with narration and music.
 
-This is only a small proof of concept, but could easily be the beginning of a full-fledged product.
+This is only a small proof of concept, largely a product of "vibe coding" with Claude Code. It is far from ready for real, commercial use.
 
 ## Features
 
@@ -16,7 +16,18 @@ This is only a small proof of concept, but could easily be the beginning of a fu
 - **Flexible Input**: Accepts either website URLs or direct business descriptions
 - **CLI Interface**: Clean command line interface with subcommands
 - **Workflow Checkpointing**: Automatic checkpoint saving and resumption for cost-effective development
-- **Voice-over Generation**: OpenAI TTS integration for narrated video advertisements
+- **Voice-over Generation**: OpenAI and ElevenLabs TTS integrations for narrated video advertisements
+
+## Shortcomings
+
+- Video generated with Runway is often flat. Some actors move, others just stand there wondering what to do. There are weird multilple screen effects. (Veo 3 is much, much better, but also much, much more expensive ($0.75 / second today on FAL.))
+- Voice-over audio often runs longer than the video clips, so is truncated. (Hence, it is deactivated by default.)
+- Voice selection doesn't necessarily have any real correlation with the ad concept or feeling (despite the simplistic logic intended to address this).
+- In general, the storyboard management is very primitive. The agents lack an awareness of how the clips go together to align with the script.
+- Ad concepts are forced to conform to a very limited schema, causing them to be similar and generally uninteresting, especially with voice over.
+- The agentic flow is mostly static, and could benefit from more conditional branching and looping depending on agent awareness of asset quality (necessitating features to let the agents inspect the assets and reason about them with regard to the concept, script, etc.).
+
+Overall, it's a cute POC that produces promising early results, especially with Veo 3.
 
 ## Examples
 
@@ -44,7 +55,7 @@ https://github.com/user-attachments/assets/6031deb6-2b99-435a-a60d-bb553ccba67b
 
    ```bash
    cp .env.example .env
-   # Edit .env with your API keys
+   # Edit .env to add your API keys
    ```
 
 3. **Generate an ad:**
@@ -164,13 +175,6 @@ uv run adgen resume <checkpoint_name>    # Resume from a specific checkpoint
 uv run adgen delete <checkpoint_name>    # Delete a checkpoint
 ```
 
-### Configuration
-
-```bash
-# Use custom config file
-uv run adgen generate -c custom-config.yaml -u <url>
-```
-
 ## Configuration
 
 Edit `config.yaml` to customize:
@@ -180,9 +184,17 @@ Edit `config.yaml` to customize:
 - Review and approval settings
 - Web scraping preferences
 
+You can also create multiple configurations with alternate settings, and specify which one you
+want on the command line:
+
+```bash
+# Use custom config file
+uv run adgen generate -c custom-config.yaml -u <url>
+```
+
 ## Project Structure
 
-```
+```text
 adgen/
 ├── abstractions/     # Provider abstractions (video, audio, music)
 ├── models/          # Pydantic models for ad components
@@ -214,6 +226,6 @@ Currently implemented:
 Coming next:
 
 - 🔲 Music generation (Suno, Udio)
-- 🔲 ElevenLabs audio generation integration
 - 🔲 Automated quality control (the agents will inspect the concept, script, video, etc. to look for things to improve)
+- 🔲 Smarter timeline management (let agents manage clip lengths and composition into a final ad with no awkwardly truncated voiceover, music, or video)
 - 🔲 FastAPI service interface

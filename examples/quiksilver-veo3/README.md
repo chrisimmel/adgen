@@ -33,9 +33,7 @@ video:
     timeout_seconds: 300
 ```
 
-Note that video generation using Veo 3 is relatively expensive, so that discourages experimentation. This video cost $6 (8s at $0.75/s). As long as the quality is high and we don't need to
-regenerate frequently, that's of course not a high cost at all
-for a video ad. It's only when experimenting and developing the
-tool that it becomes expensive.
+Note that video generation using Veo 3 is relatively expensive, discouraging experimentation. This video cost $6 (8s at $0.75/s). As long as the quality is high and we don't need to regenerate frequently, that's of course not a high cost at all
+for a video ad. It's only when experimenting and developing the tool that it becomes expensive.
 
-Because Veo 3 can generate sound with the video, this ad doesn't use any music or audio generation other than what is native in the video model. It would be useful to add music and/or narration to help carry the message.
+Because Veo 3 can generate sound with the video, this ad doesn't use any music or audio generation other than what is native in the video model. It could be useful to optionally add music and/or narration to help carry the message.
