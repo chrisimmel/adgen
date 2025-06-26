@@ -85,6 +85,7 @@ async def run_workflow(
     source_url: str | None = None,
     business_description: str | None = None,
     config_path: str | None = None,
+    enable_voice_over: bool = False,
 ) -> None:
     """Run the ad generation workflow."""
 
@@ -129,7 +130,11 @@ async def run_workflow(
 
     # Initialize state
     state = AdGenerationState(
-        project=project, config=config, approve_concept=False, approve_final=False
+        project=project,
+        config=config,
+        approve_concept=False,
+        approve_final=False,
+        enable_voice_over=enable_voice_over,
     )
 
     try:
@@ -349,7 +354,10 @@ def list_checkpoints() -> None:
 
 
 async def resume_workflow(
-    checkpoint_name: str, config_path: str, restart_from: str | None = None
+    checkpoint_name: str,
+    config_path: str,
+    restart_from: str | None = None,
+    enable_voice_over: bool = False,
 ) -> None:
     """Resume workflow from a checkpoint, optionally restarting from a specific step."""
     from pathlib import Path
@@ -383,8 +391,9 @@ async def resume_workflow(
         # Update state with current config (in case config changed)
         state["config"] = config
 
-        # Convert to AdGenerationState
+        # Convert to AdGenerationState and add voice-over flag
         state = AdGenerationState(state)
+        state["enable_voice_over"] = enable_voice_over
     except Exception as e:
         console.print(f"[red]Configuration error: {e}[/red]")
         return
@@ -457,16 +466,23 @@ async def resume_workflow(
             state["approve_concept"] = True
             result = await generate_video_node(state)
 
-            console.print("[yellow]Continuing with audio generation...[/yellow]")
-            from adgen.workflows.ad_generation import generate_audio_node
+            if enable_voice_over:
+                console.print("[yellow]Continuing with audio generation...[/yellow]")
+                from adgen.workflows.ad_generation import generate_audio_node
 
-            result = await generate_audio_node(result)
+                result = await generate_audio_node(result)
+            else:
+                console.print(
+                    "[yellow]Skipping audio generation (voice-over disabled)...[/yellow]"
+                )
+                result["project"].status = "audio_skipped"
 
             # Check if we need video composition or audio overlay on existing video
             if (
                 result["project"].assets
                 and result["project"].assets.final_video_path
                 and not result["project"].assets.scene_clips
+                and result["project"].status != "audio_skipped"
             ):
                 console.print(
                     "[yellow]Applying audio overlay to existing final video...[/yellow]"
@@ -581,19 +597,27 @@ async def resume_workflow(
             console.print("[green]✅ Resumed workflow complete![/green]")
 
         elif next_step == "generate_audio":
-            console.print("[yellow]Continuing with audio generation...[/yellow]")
+            if enable_voice_over:
+                console.print("[yellow]Continuing with audio generation...[/yellow]")
 
-            # Import and run audio generation node
-            from adgen.workflows.ad_generation import generate_audio_node
+                # Import and run audio generation node
+                from adgen.workflows.ad_generation import generate_audio_node
 
-            state["approve_concept"] = True  # Must be approved to reach this point
-            result = await generate_audio_node(state)
+                state["approve_concept"] = True  # Must be approved to reach this point
+                result = await generate_audio_node(state)
+            else:
+                console.print(
+                    "[yellow]Skipping audio generation (voice-over disabled)...[/yellow]"
+                )
+                state["project"].status = "audio_skipped"
+                result = state
 
             # Check if we need video composition or audio overlay on existing video
             if (
                 result["project"].assets
                 and result["project"].assets.final_video_path
                 and not result["project"].assets.scene_clips
+                and result["project"].status != "audio_skipped"
             ):
                 console.print(
                     "[yellow]Applying audio overlay to existing final video...[/yellow]"
@@ -756,7 +780,14 @@ def cli():
 @click.option(
     "--config", "-c", help="Path to configuration file", default="config.yaml"
 )
-def generate(url: str | None, business_description: str | None, config: str) -> None:
+@click.option(
+    "--voice-over",
+    is_flag=True,
+    help="Enable voice-over generation (disabled by default)",
+)
+def generate(
+    url: str | None, business_description: str | None, config: str, voice_over: bool
+) -> None:
     """Generate AI-powered video advertisements.
 
     Provide either a website URL to analyze or a direct business description.
@@ -780,7 +811,7 @@ def generate(url: str | None, business_description: str | None, config: str) -> 
             )
 
     # Run the async workflow
-    asyncio.run(run_workflow(url, business_description, config))
+    asyncio.run(run_workflow(url, business_description, config, voice_over))
 
 
 @cli.command()
@@ -802,9 +833,16 @@ def checkpoints():
     ),
     default=None,
 )
-def resume(checkpoint_name: str, config: str, restart_from: str | None):
+@click.option(
+    "--voice-over",
+    is_flag=True,
+    help="Enable voice-over generation (disabled by default)",
+)
+def resume(
+    checkpoint_name: str, config: str, restart_from: str | None, voice_over: bool
+):
     """Resume workflow from a checkpoint, optionally restarting from a specific step."""
-    asyncio.run(resume_workflow(checkpoint_name, config, restart_from))
+    asyncio.run(resume_workflow(checkpoint_name, config, restart_from, voice_over))
 
 
 @cli.command()

@@ -21,6 +21,7 @@ class AdGenerationState(dict[str, Any]):
     config: Config
     approve_concept: bool = False
     approve_final: bool = False
+    enable_voice_over: bool = False
 
 
 # Global checkpoint manager
@@ -694,6 +695,18 @@ async def generate_audio_node(state: AdGenerationState) -> AdGenerationState:
     if not state["approve_concept"]:
         return state
 
+    # Check if voice-over is enabled and needed
+    if not state.get("enable_voice_over", False):
+        print("Voice-over disabled via command line - skipping audio generation")
+        state["project"].status = "audio_skipped"
+        return state
+
+    concept = state["project"].concept
+    if concept and not concept.needs_voice_over:
+        print("Concept indicates no voice-over needed - skipping audio generation")
+        state["project"].status = "audio_skipped"
+        return state
+
     script = state["project"].script
     if not script:
         print("No script found for audio generation")
@@ -866,8 +879,12 @@ async def compose_video_node(state: AdGenerationState) -> AdGenerationState:
         # Concatenate all clips
         final_clip = concatenate_videoclips(clips)
 
-        # Add voice-over audio if available with smart audio handling
-        if state["project"].assets and state["project"].assets.audio_path:
+        # Add voice-over audio if available and not skipped with smart audio handling
+        if (
+            state["project"].assets
+            and state["project"].assets.audio_path
+            and state["project"].status != "audio_skipped"
+        ):
             audio_path = state["project"].assets.audio_path
             if audio_path.exists():
                 print(f"Adding voice-over audio: {audio_path}")
